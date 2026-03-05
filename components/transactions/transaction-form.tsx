@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-type TransactionKind = "income" | "expense";
+type TransactionKind = "expense";
 
 const EXPENSE_CATEGORIES = [
   "debt",
@@ -18,25 +18,6 @@ const EXPENSE_CATEGORIES = [
   "other",
 ];
 
-const INCOME_CATEGORIES = [
-  "salary",
-  "business",
-  "freelance",
-  "dividends",
-  "interest",
-  "rent",
-  "passive",
-  "other",
-];
-
-type TransactionFormPayload = {
-  title: string;
-  kind: TransactionKind;
-  category: string;
-  amount: number;
-  transactionDate: string;
-  notes: string;
-};
 
 type TransactionFormProps = {
   open: boolean;
@@ -79,7 +60,7 @@ export function TransactionForm({ open, onClose, onSuccess }: TransactionFormPro
     }
   }, [open]);
 
-  const categories = form.kind === "expense" ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
+  const categories = EXPENSE_CATEGORIES;
 
   if (!open || !mounted) {
     return null;
@@ -90,7 +71,7 @@ export function TransactionForm({ open, onClose, onSuccess }: TransactionFormPro
       <div className="flex min-h-full items-center justify-center p-4">
         <div className="panel mx-auto w-full max-w-lg max-h-[90vh] overflow-y-auto p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Add Transaction</h3>
+            <h3 className="text-lg font-semibold">Add Expense</h3>
             <button className="rounded-lg border border-line px-3 py-1.5 text-sm" onClick={onClose} type="button">
               Close
             </button>
@@ -144,25 +125,15 @@ export function TransactionForm({ open, onClose, onSuccess }: TransactionFormPro
             }}
           >
             <div className="flex gap-2">
-              <label className="flex-1 cursor-pointer">
+              <label className="flex-1 cursor-pointer rounded-lg border border-accent bg-accent/10 px-4 py-2 text-center">
                 <input
                   type="radio"
                   name="kind"
                   checked={form.kind === "expense"}
                   onChange={() => setForm((current) => ({ ...current, kind: "expense", category: "personal" }))}
-                  className="mr-2"
+                  className="sr-only"
                 />
-                <span className="text-sm font-medium">Expense</span>
-              </label>
-              <label className="flex-1 cursor-pointer">
-                <input
-                  type="radio"
-                  name="kind"
-                  checked={form.kind === "income"}
-                  onChange={() => setForm((current) => ({ ...current, kind: "income", category: "salary" }))}
-                  className="mr-2"
-                />
-                <span className="text-sm font-medium">Income</span>
+                <span className="text-sm font-medium text-accent">Expense</span>
               </label>
             </div>
 
@@ -172,7 +143,7 @@ export function TransactionForm({ open, onClose, onSuccess }: TransactionFormPro
                 className="rounded-lg border border-line bg-surface px-3 py-2"
                 value={form.title}
                 onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                placeholder={form.kind === "expense" ? "Groceries, Gas, etc." : "Salary, Freelance, etc."}
+                placeholder="Groceries, Gas, Rent, etc."
               />
             </label>
 
@@ -231,7 +202,7 @@ export function TransactionForm({ open, onClose, onSuccess }: TransactionFormPro
                 Cancel
               </button>
               <button className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-white" disabled={submitting} type="submit">
-                {submitting ? "Saving..." : "Add Transaction"}
+                {submitting ? "Saving..." : "Add Expense"}
               </button>
             </div>
           </form>

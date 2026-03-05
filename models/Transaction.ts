@@ -8,6 +8,7 @@ const transactionSchema = new Schema(
     amount: { type: Number, required: true, min: 0 },
     transactionDate: { type: Date, required: true },
     notes: { type: String, default: "", trim: true },
+    recurringExpenseId: { type: Schema.Types.ObjectId, ref: "RecurringExpense", default: null },
   },
   {
     timestamps: true,

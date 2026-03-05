@@ -6,13 +6,31 @@ import { connectToDatabase } from "@/lib/mongodb";
 import { transactionCreateSchema } from "@/lib/validation";
 import { Transaction } from "@/models/Transaction";
 
-export async function GET() {
+export async function GET(request: Request) {
   const unauthorized = await requireApiAuth();
   if (unauthorized) return unauthorized;
 
+  const url = new URL(request.url);
+  const startParam = url.searchParams.get("start");
+  const endParam = url.searchParams.get("end");
+  const kindParam = url.searchParams.get("kind");
+
+  const query: Record<string, unknown> = {};
+  if (startParam || endParam) {
+    const startDate = startParam ? new Date(startParam) : null;
+    const endDate = endParam ? new Date(endParam) : null;
+    query.transactionDate = {
+      ...(startDate ? { $gte: startDate } : {}),
+      ...(endDate ? { $lte: endDate } : {}),
+    };
+  }
+  if (kindParam) {
+    query.kind = kindParam;
+  }
+
   await connectToDatabase();
 
-  const items = await Transaction.find().sort({ transactionDate: -1 }).lean();
+  const items = await Transaction.find(query).sort({ transactionDate: -1 }).lean();
   return ok({ items, total: items.length });
 }
 

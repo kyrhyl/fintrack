@@ -549,5 +549,213 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
         return netWorthTrendMock;
       }
     },
+
+    async getDailyTrackingData(date?: string) {
+      try {
+        const [
+          { connectToDatabase },
+          { Transaction },
+          { BudgetPlan },
+        ] = await Promise.all([
+          import("@/lib/mongodb"),
+          import("@/models/Transaction"),
+          import("@/models/BudgetPlan"),
+        ]);
+
+        await connectToDatabase();
+
+        const targetDate = date ? new Date(date) : new Date();
+        const dateStr = targetDate.toISOString().split("T")[0];
+        const monthStart = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
+        const monthEnd = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0, 23, 59, 59);
+        const monthKey = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, "0")}`;
+
+        const weekStart = new Date(targetDate);
+        weekStart.setDate(targetDate.getDate() - 6);
+        weekStart.setHours(0, 0, 0, 0);
+        const weekEnd = new Date(targetDate);
+        weekEnd.setHours(23, 59, 59, 999);
+
+        const [dayTransactions, monthTransactions, budgetPlan, upcomingRecurring, salaryRecord, liabilities, weeklyTransactions] = await Promise.all([
+          Transaction.find({
+            transactionDate: {
+              $gte: new Date(dateStr),
+              $lt: new Date(new Date(dateStr).getTime() + 24 * 60 * 60 * 1000),
+            },
+          })
+            .sort({ transactionDate: -1 })
+            .lean(),
+          Transaction.find({
+            transactionDate: { $gte: monthStart, $lte: monthEnd },
+            kind: "expense",
+          }).lean(),
+          BudgetPlan.findOne({ month: monthKey }).lean(),
+          import("@/models/RecurringExpense").then(({ RecurringExpense }) =>
+            RecurringExpense.find({ isActive: true })
+              .sort({ nextDueDate: 1 })
+              .limit(5)
+              .lean(),
+          ),
+          import("@/models/SalaryRecord").then(({ SalaryRecord }) =>
+            SalaryRecord.findOne().sort({ createdAt: -1 }).lean(),
+          ),
+          import("@/models/Liability").then(({ Liability }) =>
+            Liability.find({ isActive: true, status: { $ne: "closed" } })
+              .sort({ monthlyPayment: -1 })
+              .lean(),
+          ),
+          Transaction.find({
+            transactionDate: { $gte: weekStart, $lte: weekEnd },
+            kind: "expense",
+          }).lean(),
+        ]);
+
+        const todaySpending = dayTransactions
+          .filter((t) => t.kind === "expense")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        const monthSpending = monthTransactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        const categories = budgetPlan?.categories || [];
+        const categoryNames = categories.length > 0
+          ? categories.map((c: { name: string }) => c.name)
+          : ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Savings", "Other"];
+
+        const actualByCategory: Record<string, number> = {};
+        monthTransactions.forEach((t) => {
+          const cat = t.category || "Other";
+          actualByCategory[cat] = (actualByCategory[cat] || 0) + (t.amount || 0);
+        });
+
+        const salaryDeductionNames = new Set(
+          [
+            ...(salaryRecord?.deductions || []),
+            ...(salaryRecord?.loanDeductions || []),
+          ]
+            .map((item: { name?: string }) => (item.name || "").trim().toLowerCase())
+            .filter(Boolean),
+        );
+
+        const filteredCategories = categories.filter((category: { name: string }) =>
+          !salaryDeductionNames.has(category.name.trim().toLowerCase()),
+        );
+
+        const filteredCategoryNames = filteredCategories.length > 0
+          ? filteredCategories.map((c: { name: string }) => c.name)
+          : categoryNames;
+
+        const budgetProgress = filteredCategoryNames.map((category: string) => {
+          const planned = categories.find((c: { name: string }) => c.name === category)?.plannedAmount || 0;
+          const actual = actualByCategory[category] || 0;
+          const remaining = Math.max(0, planned - actual);
+          const percentUsed = planned > 0 ? Math.round((actual / planned) * 100) : 0;
+
+          return { category, planned, actual, remaining, percentUsed };
+        });
+
+        const budgetedTotal = filteredCategories.reduce(
+          (sum: number, item: { plannedAmount?: number }) => sum + (item.plannedAmount || 0),
+          0,
+        );
+
+        const netSalary = salaryRecord?.netPay || 0;
+        const salaryMonth = salaryRecord?.month || null;
+
+        const daysInMonth = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 0).getDate();
+        const daysRemaining = Math.max(1, daysInMonth - targetDate.getDate() + 1);
+        
+        const recurringDebts = (liabilities || [])
+          .filter((item: { name?: string }) => !salaryDeductionNames.has((item.name || "").trim().toLowerCase()))
+          .map((item: { _id: unknown; name?: string; category?: string; monthlyPayment?: number; monthlyAmortization?: number; outstandingBalance?: number; status?: string; }) => {
+          const monthlyPayment = item.monthlyPayment && item.monthlyPayment > 0
+            ? item.monthlyPayment
+            : item.monthlyAmortization || 0;
+          return {
+            id: String(item._id),
+            name: item.name || "Untitled debt",
+            category: item.category || "other",
+            monthlyPayment,
+            outstandingBalance: item.outstandingBalance || 0,
+            status: item.status || "on track",
+          };
+        });
+
+        const recurringDebtsTotal = recurringDebts.reduce((sum, item) => sum + item.monthlyPayment, 0);
+        
+        const disposableMonthly = netSalary - recurringDebtsTotal - budgetedTotal;
+        const dailyAllowance = disposableMonthly > 0 ? disposableMonthly / daysRemaining : 0;
+
+        const weeklyTotalsByDate = new Map<string, number>();
+        weeklyTransactions.forEach((item) => {
+          const key = new Date(item.transactionDate).toISOString().split("T")[0];
+          weeklyTotalsByDate.set(key, (weeklyTotalsByDate.get(key) || 0) + (item.amount || 0));
+        });
+
+        const weeklySpending = Array.from({ length: 7 }).map((_, index) => {
+          const date = new Date(weekStart);
+          date.setDate(weekStart.getDate() + index);
+          const key = date.toISOString().split("T")[0];
+          return {
+            date: key,
+            label: date.toLocaleDateString("en-PH", { weekday: "short" }),
+            amount: weeklyTotalsByDate.get(key) || 0,
+          };
+        });
+
+        return {
+          date: dateStr,
+          netSalary,
+          salaryMonth,
+          budgetedTotal,
+          disposableMonthly,
+          dailyAllowance,
+          daysRemaining,
+          recurringDebtsTotal,
+          recurringDebts,
+          weeklySpending,
+          transactions: dayTransactions.map((t) => ({
+            id: String(t._id),
+            title: t.title,
+            category: t.category,
+            amount: t.amount,
+            kind: t.kind,
+            transactionDate: new Date(t.transactionDate).toISOString(),
+            source: t.recurringExpenseId ? "recurring" : "manual",
+          })),
+          todaySpending,
+          monthSpending,
+          budgetProgress,
+          categories: filteredCategoryNames,
+          upcomingBills: upcomingRecurring.map((item) => ({
+            id: String(item._id),
+            name: item.name,
+            amount: item.amount,
+            category: item.category,
+            nextDueDate: item.nextDueDate ? new Date(item.nextDueDate).toISOString() : null,
+            recurrenceRule: item.recurrenceRule,
+          })),
+        };
+      } catch (error) {
+        console.error("Daily tracking error:", error);
+        return {
+          date: new Date().toISOString().split("T")[0],
+          netSalary: 0,
+          salaryMonth: null,
+          budgetedTotal: 0,
+          disposableMonthly: 0,
+          dailyAllowance: 0,
+          daysRemaining: 0,
+          recurringDebtsTotal: 0,
+          recurringDebts: [],
+          weeklySpending: [],
+          transactions: [],
+          todaySpending: 0,
+          monthSpending: 0,
+          budgetProgress: [],
+          categories: ["Housing", "Food", "Transportation", "Utilities", "Entertainment", "Savings", "Other"],
+          upcomingBills: [],
+        };
+      }
+    },
   };
 }

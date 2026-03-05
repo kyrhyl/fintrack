@@ -180,3 +180,54 @@ export type NetWorthTrendData = {
   deltaPercent: number;
   isCurrentMonthCaptured: boolean;
 };
+
+export type DailyTrackingData = {
+  date: string;
+  netSalary: number;
+  salaryMonth: string | null;
+  budgetedTotal: number;
+  disposableMonthly: number;
+  dailyAllowance: number;
+  daysRemaining: number;
+  recurringDebtsTotal: number;
+  recurringDebts: Array<{
+    id: string;
+    name: string;
+    category: string;
+    monthlyPayment: number;
+    outstandingBalance: number;
+    status: string;
+  }>;
+  weeklySpending: Array<{
+    date: string;
+    label: string;
+    amount: number;
+  }>;
+  transactions: Array<{
+    id: string;
+    title: string;
+    category: string;
+    amount: number;
+    kind: "income" | "expense";
+    transactionDate: string;
+    source: "manual" | "recurring";
+  }>;
+  todaySpending: number;
+  monthSpending: number;
+  budgetProgress: Array<{
+    category: string;
+    planned: number;
+    actual: number;
+    remaining: number;
+    percentUsed: number;
+  }>;
+  categories: string[];
+  upcomingBills: Array<{
+    id: string;
+    name: string;
+    amount: number;
+    category: string;
+    nextDueDate: string | null;
+    recurrenceRule: "monthly" | "quarterly" | "yearly";
+  }>;
+};

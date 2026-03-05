@@ -10,3 +10,4 @@ export const getAssetsData = provider.getAssetsData;
 export const getInvestmentsData = provider.getAssetsData;
 export const getDebtsData = debtsProvider.getDebtsData;
 export const getNetWorthTrendData = provider.getNetWorthTrendData;
+export const getDailyTrackingData = provider.getDailyTrackingData;

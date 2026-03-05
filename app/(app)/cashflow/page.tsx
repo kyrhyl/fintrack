@@ -1,15 +1,12 @@
-import { getDashboardData } from "@/lib/data";
+import { getDailyTrackingData } from "@/lib/data";
+import { CashflowView } from "./cashflow-view";
 
 export default async function CashflowPage() {
-  const data = await getDashboardData();
+  const data = await getDailyTrackingData();
 
-  return (
-    <div className="panel p-6">
-      <h1 className="text-2xl font-semibold">Cash Flow</h1>
-      <p className="mt-2 text-muted">Cash flow analysis coming soon.</p>
-      <pre className="mt-4 overflow-auto rounded bg-surface p-4 text-xs">
-        {JSON.stringify(data.financialSummary, null, 2)}
-      </pre>
-    </div>
-  );
+  const monthStart = new Date(data.date);
+  monthStart.setDate(1);
+  const monthLabel = monthStart.toLocaleDateString("en-PH", { month: "long", year: "numeric" });
+
+  return <CashflowView data={data} monthLabel={monthLabel} />;
 }

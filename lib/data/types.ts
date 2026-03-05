@@ -3,6 +3,7 @@ import type {
   DashboardData,
   DebtsData,
   NetWorthTrendData,
+  DailyTrackingData,
 } from "@/types/finance";
 
 export type FinanceDataProvider = {
@@ -10,4 +11,5 @@ export type FinanceDataProvider = {
   getAssetsData: () => Promise<AssetsData>;
   getDebtsData: () => Promise<DebtsData>;
   getNetWorthTrendData: () => Promise<NetWorthTrendData>;
+  getDailyTrackingData: (date?: string) => Promise<DailyTrackingData>;
 };
