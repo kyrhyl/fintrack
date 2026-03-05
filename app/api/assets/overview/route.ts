@@ -1,18 +1,20 @@
 import { ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
+import { roundMoney } from "@/lib/services/budget";
 import { Asset } from "@/models/Investment";
 import { BudgetPlan } from "@/models/BudgetPlan";
+import { NetWorthSnapshot } from "@/models/NetWorthSnapshot";
 import { SalaryRecord } from "@/models/SalaryRecord";
 import { Transaction } from "@/models/Transaction";
 
-import type { AssetsData } from "@/types/finance";
+import type { AssetsData, TrendPoint } from "@/types/finance";
 
-type MonthAggregate = {
-  _id: string;
-  income: number;
-  expense: number;
-};
+function monthLabel(month: string) {
+  const [year, monthNum] = month.split("-");
+  return `${monthNum}/${year.slice(2)}`;
+}
 
 function resolveMonthlyIncome(currentValue: number, annualYieldPercent: number, monthlyIncome?: number) {
   if (typeof monthlyIncome === "number" && monthlyIncome > 0) {
@@ -36,37 +38,18 @@ function monthRange(month: string) {
 }
 
 export async function GET() {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   await connectToDatabase();
 
   const currentMonth = toMonthKey(new Date());
   const { start, end } = monthRange(currentMonth);
 
-  const [assets, latestPlan, monthlySeries, passiveIncomeResult, salaryForMonth, latestSalary] = await Promise.all([
+  const [assets, latestPlan, snapshots, passiveIncomeResult, salaryForMonth, latestSalary] = await Promise.all([
     Asset.find({ isActive: true }).sort({ currentValue: -1 }).lean(),
     BudgetPlan.findOne().sort({ month: -1 }).lean(),
-    Transaction.aggregate<MonthAggregate>([
-      {
-        $group: {
-          _id: {
-            $dateToString: {
-              format: "%Y-%m",
-              date: "$transactionDate",
-            },
-          },
-          income: {
-            $sum: {
-              $cond: [{ $eq: ["$kind", "income"] }, "$amount", 0],
-            },
-          },
-          expense: {
-            $sum: {
-              $cond: [{ $eq: ["$kind", "expense"] }, "$amount", 0],
-            },
-          },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]),
+    NetWorthSnapshot.find().sort({ month: 1 }).limit(24).lean(),
     Transaction.aggregate<{ total: number }>([
       {
         $match: {
@@ -85,16 +68,21 @@ export async function GET() {
 
   const salaryRecord = salaryForMonth || latestSalary;
 
-  const recentSeries = monthlySeries.slice(-8);
-  const initialValue = assets.length > 0 ? assets.reduce((sum, item) => sum + item.currentValue, 0) : 1200000;
-  let runningValue = initialValue;
-  const trend = recentSeries.map((entry) => {
-    runningValue += entry.income - entry.expense;
-    return {
-      label: entry._id.split("-")[1] || entry._id,
-      value: Math.max(0, Math.round(runningValue * 100) / 100),
-    };
-  });
+  let trend: TrendPoint[];
+  if (snapshots.length > 0) {
+    trend = snapshots.map((snap) => ({
+      label: monthLabel(snap.month),
+      value: roundMoney(snap.assetsTotal || 0),
+    }));
+  } else {
+    const currentAssetsTotal = assets.reduce((sum, item) => sum + (item.currentValue || 0), 0);
+    trend = [
+      {
+        label: monthLabel(currentMonth),
+        value: roundMoney(currentAssetsTotal),
+      },
+    ];
+  }
 
   const planCategories = Array.isArray(latestPlan?.categories) ? latestPlan.categories : [];
   const sortedCategories = [...planCategories].sort((a, b) => (b.plannedAmount || 0) - (a.plannedAmount || 0));
@@ -163,15 +151,18 @@ export async function GET() {
   const suggestedAssetBudget = netPay > 0 ? Number((netPay * (suggestedRatePercent / 100)).toFixed(2)) : 0;
   const passiveCoveragePercent = netPay > 0 ? Number(((monthlyDividends / netPay) * 100).toFixed(1)) : 0;
 
+  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  const assetsFromSnapshot = latestSnapshot ? latestSnapshot.assetsTotal : netWorth;
+
   const payload: AssetsData = {
     title: "Asset Portfolio",
     subtitle: `Detailed breakdown as of ${currentMonth}`,
     summaryCards: [
-      { label: "Net Worth", value: netWorth, note: "Calculated from latest portfolio allocations" },
+      { label: "Net Worth", value: assetsFromSnapshot, note: "Calculated from latest portfolio allocations" },
       { label: "Monthly Dividends", value: monthlyDividends, note: "Income from passive and planned yield" },
     ],
     bankAccounts,
-    trend: trend.length > 0 ? trend : [{ label: currentMonth.split("-")[1] || currentMonth, value: 0 }],
+    trend,
     holdings,
     salaryInsights: {
       month: salaryRecord?.month || currentMonth,

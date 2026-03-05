@@ -1,29 +1,7 @@
 import { PortfolioManager } from "@/components/investments/portfolio-manager";
+import { PortfolioTrendChart } from "@/components/investments/portfolio-trend-chart";
 import { getAssetsData } from "@/lib/data";
 import { formatPHP } from "@/lib/data/format";
-
-type PlotPoint = {
-  x: number;
-  y: number;
-};
-
-function buildPlot(values: number[], width: number, height: number, padX: number, padY: number): PlotPoint[] {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
-  const range = Math.max(max - min, 1);
-  const usableW = width - padX * 2;
-  const usableH = height - padY * 2;
-
-  return values.map((value, index) => {
-    const x = padX + (usableW * index) / Math.max(values.length - 1, 1);
-    const y = padY + ((max - value) / range) * usableH;
-    return { x, y };
-  });
-}
-
-function toLine(points: PlotPoint[]) {
-  return points.map((point) => `${point.x},${point.y}`).join(" ");
-}
 
 export default async function InvestmentAssetsPage() {
   const data = await getAssetsData();
@@ -33,19 +11,6 @@ export default async function InvestmentAssetsPage() {
   const weightedReturn =
     data.holdings.reduce((sum, item) => sum + item.apy * item.value, 0) /
     Math.max(data.holdings.reduce((sum, item) => sum + item.value, 0), 1);
-
-  const chartW = 760;
-  const chartH = 290;
-  const chartPadX = 34;
-  const chartPadY = 24;
-  const points = buildPlot(
-    data.trend.map((point) => point.value),
-    chartW,
-    chartH,
-    chartPadX,
-    chartPadY,
-  );
-  const area = `${points[0]?.x},${chartH - chartPadY} ${toLine(points)} ${points[points.length - 1]?.x},${chartH - chartPadY}`;
 
   return (
     <section className="panel w-full min-w-0 bg-[#f8fbff] p-0">
@@ -128,39 +93,7 @@ export default async function InvestmentAssetsPage() {
           </div>
 
           <div className="grid min-w-0 gap-4">
-            <article className="rounded-2xl border border-line bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold">Portfolio Trend</h2>
-                  <p className="text-xs text-muted">Growth across Stocks, UITF, and MP2</p>
-                </div>
-                <div className="flex flex-wrap justify-end gap-2 text-xs">
-                  <span className="whitespace-nowrap rounded-full bg-soft-line px-2 py-1">1M</span>
-                  <span className="whitespace-nowrap rounded-full bg-accent px-2 py-1 text-white">YTD</span>
-                  <span className="whitespace-nowrap rounded-full bg-soft-line px-2 py-1">ALL</span>
-                </div>
-              </div>
-
-              <div className="max-w-full overflow-x-auto">
-                <svg className="min-w-[680px]" viewBox={`0 0 ${chartW} ${chartH}`}>
-                  {Array.from({ length: 6 }).map((_, index) => {
-                    const y = chartPadY + ((chartH - chartPadY * 2) * index) / 5;
-                    return <line key={y} x1={chartPadX} y1={y} x2={chartW - chartPadX} y2={y} stroke="#e7eef6" strokeWidth="1" />;
-                  })}
-                  <polygon points={area} fill="rgba(23, 152, 219, 0.15)" />
-                  <polyline points={toLine(points)} fill="none" stroke="#1899dc" strokeWidth="3" />
-                  {points.map((point) => (
-                    <circle key={`${point.x}-${point.y}`} cx={point.x} cy={point.y} fill="#1899dc" r="4" />
-                  ))}
-                </svg>
-              </div>
-
-              <div className="mt-2 grid grid-cols-8 text-[10px] text-muted">
-                {data.trend.map((point, index) => (
-                  <span key={`${point.label}-${index}`} className="text-center">{`${point.label} 25`}</span>
-                ))}
-              </div>
-            </article>
+            <PortfolioTrendChart trend={data.trend} />
 
             <PortfolioManager />
             </div>

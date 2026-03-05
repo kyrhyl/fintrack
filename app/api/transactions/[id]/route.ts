@@ -2,6 +2,7 @@ import { isValidObjectId } from "mongoose";
 import { ZodError } from "zod";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { transactionCreateSchema } from "@/lib/validation";
 import { Transaction } from "@/models/Transaction";
@@ -11,6 +12,9 @@ type RouteContext = {
 };
 
 export async function PATCH(request: Request, context: RouteContext) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const { id } = await context.params;
 
   if (!isValidObjectId(id)) {
@@ -41,6 +45,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 }
 
 export async function DELETE(_: Request, context: RouteContext) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const { id } = await context.params;
 
   if (!isValidObjectId(id)) {

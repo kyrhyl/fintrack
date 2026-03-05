@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { assetCreateSchema } from "@/lib/validation";
 import { Asset } from "@/models/Investment";
@@ -21,6 +22,9 @@ function parseNumber(value: string | null, fallback: number) {
 }
 
 export async function GET(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const url = new URL(request.url);
   const query = (url.searchParams.get("q") || "").trim();
   const type = (url.searchParams.get("type") || "").trim();
@@ -62,6 +66,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = assetCreateSchema.parse(await request.json());
 

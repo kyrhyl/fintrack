@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 
 type NavIcon = "dashboard" | "accounts" | "budget" | "income" | "trend";
@@ -65,6 +66,10 @@ function SidebarIcon({ icon }: { icon: NavIcon }) {
 export function Sidebar() {
   const pathname = usePathname();
 
+  function handleSignOut() {
+    void signOut({ callbackUrl: "/login" });
+  }
+
   return (
     <aside className="panel hidden h-[calc(100vh-3rem)] flex-col overflow-hidden p-0 lg:flex">
       <div className="dashboard-side-brand">
@@ -107,6 +112,17 @@ export function Sidebar() {
             <path d="M21 12.6A8.9 8.9 0 0 1 11.4 3A9 9 0 1 0 21 12.6Z" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Theme Toggle
+        </span>
+      </button>
+
+      <button className="border-t border-line px-4 py-3 text-left text-sm font-medium text-muted" type="button" onClick={handleSignOut}>
+        <span className="inline-flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" className="h-4 w-4" aria-hidden="true">
+            <path d="M9 6.75C9 5.78 9.78 5 10.75 5H17.25C18.22 5 19 5.78 19 6.75V17.25C19 18.22 18.22 19 17.25 19H10.75C9.78 19 9 18.22 9 17.25" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M14 12H4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            <path d="M6.75 9.25L4 12L6.75 14.75" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Sign out
         </span>
       </button>
     </aside>

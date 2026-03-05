@@ -1,4 +1,5 @@
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { isValidMonthKey, toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
 import { Investment } from "@/models/Investment";
@@ -19,6 +20,9 @@ function resolveMonthlyIncome(currentValue: number, annualYieldPercent: number, 
 }
 
 export async function GET(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const url = new URL(request.url);
   const month = url.searchParams.get("month") || toMonthKey(new Date());
 

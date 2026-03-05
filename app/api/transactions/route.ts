@@ -1,11 +1,15 @@
 import { ZodError } from "zod";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { transactionCreateSchema } from "@/lib/validation";
 import { Transaction } from "@/models/Transaction";
 
 export async function GET() {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   await connectToDatabase();
 
   const items = await Transaction.find().sort({ transactionDate: -1 }).lean();
@@ -13,6 +17,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = transactionCreateSchema.parse(await request.json());
 

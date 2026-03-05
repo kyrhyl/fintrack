@@ -2,6 +2,7 @@ import { ZodError } from "zod";
 import { isValidObjectId } from "mongoose";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { computeLiabilityValues } from "@/lib/liabilities/calc";
 import { isValidMonthKey, toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
@@ -149,6 +150,9 @@ async function reconcileLoanDeductions(month: string, loanDeductions: LoanDeduct
 }
 
 export async function GET(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const url = new URL(request.url);
   const month = url.searchParams.get("month") || toMonthKey(new Date());
 
@@ -163,6 +167,9 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = salaryUpsertSchema.parse(await request.json());
     const earningsTotal = payload.earnings.reduce((sum, row) => sum + (row.amount || 0), 0);

@@ -1,6 +1,7 @@
 import { ZodError } from "zod";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { incomeStreamCreateSchema } from "@/lib/validation";
 import { IncomeStream } from "@/models/IncomeStream";
@@ -12,6 +13,9 @@ function parseBoolean(value: string | null) {
 }
 
 export async function GET(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   const url = new URL(request.url);
   const includeArchived = parseBoolean(url.searchParams.get("includeArchived")) || false;
   const type = (url.searchParams.get("type") || "").trim();
@@ -31,6 +35,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = incomeStreamCreateSchema.parse(await request.json());
 

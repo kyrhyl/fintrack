@@ -1,17 +1,24 @@
 import { ZodError } from "zod";
 
 import { fail, ok } from "@/lib/api";
+import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
 import { recurringExpenseCreateSchema } from "@/lib/validation";
 import { RecurringExpense } from "@/models/RecurringExpense";
 
 export async function GET() {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   await connectToDatabase();
   const items = await RecurringExpense.find().sort({ nextDueDate: 1 }).lean();
   return ok({ items, total: items.length });
 }
 
 export async function POST(request: Request) {
+  const unauthorized = await requireApiAuth();
+  if (unauthorized) return unauthorized;
+
   try {
     const payload = recurringExpenseCreateSchema.parse(await request.json());
 
