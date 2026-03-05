@@ -103,49 +103,52 @@ export default async function DashboardPage() {
             passiveIncome={passiveIncome}
             budgetUtilizationPercent={expenseToIncomeRatio}
           />
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <article className="dashboard-mini-card">
-              <p className="dashboard-kpi-label">Debt To Passive Ratio</p>
-              <p className="mt-1 text-2xl font-semibold text-danger">{debtToPassiveRatio}%</p>
-            </article>
-            <article className="dashboard-mini-card">
-              <p className="dashboard-kpi-label">Debt To Income Ratio</p>
-              <p className="mt-1 text-2xl font-semibold text-warning">{debtToIncomeRatio}%</p>
-            </article>
-          </div>
         </div>
 
         <BalanceSheet statement={data.balanceSheet} />
       </section>
 
-      <section className="mt-4 grid gap-3 md:grid-cols-3">
+      <section className="mt-4 grid gap-3 md:grid-cols-2">
         <NetWorthTrend trend={netWorthTrend} />
 
         <article className="dashboard-mini-card">
-          <p className="text-sm font-semibold">Savings Goal</p>
-          <p className="mt-2 text-sm text-muted">Emergency Fund</p>
-          <div className="mt-2 flex items-center justify-between text-sm">
-            <span className="font-semibold">{savingsProgress}% reached</span>
-            <span className="text-muted">{formatPHP(savingsExpense)}</span>
-          </div>
-          <div className="mt-2 h-1.5 rounded-full bg-soft-line">
-            <div className="h-1.5 rounded-full bg-accent" style={{ width: `${savingsProgress}%` }} />
+          <p className="text-sm font-semibold">Financial Ratios</p>
+          <div className="mt-3 grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <p className="text-xs text-muted">Debt / Passive</p>
+              <p className="mt-1 text-xl font-semibold text-danger">{debtToPassiveRatio}%</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted">Debt / Income</p>
+              <p className="mt-1 text-xl font-semibold text-warning">{debtToIncomeRatio}%</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted">Credit Util</p>
+              <p className={`mt-1 text-xl font-semibold ${creditUtilization <= 30 ? "text-success" : "text-warning"}`}>
+                {creditUtilization.toFixed(0)}%
+              </p>
+              <p className="text-[10px] text-muted">{creditUtilization <= 30 ? "Healthy" : "High"}</p>
+            </div>
           </div>
         </article>
 
         <article className="dashboard-mini-card">
-          <p className="text-sm font-semibold">Portfolio Yield</p>
-          <p className="mt-2 text-2xl font-semibold text-foreground">{portfolioYield.toFixed(1)}%</p>
-          <p className="mt-1 text-sm text-muted">Across all investment vehicles</p>
-        </article>
-
-        <article className="dashboard-mini-card">
-          <p className="text-sm font-semibold">Credit Utilization</p>
-          <p className="mt-2 text-2xl font-semibold text-foreground">{creditUtilization.toFixed(0)}%</p>
-          <p className={`mt-1 text-sm ${creditUtilization <= 30 ? "text-success" : "text-warning"}`}>
-            {creditUtilization <= 30 ? "Healthy range" : "Needs attention"}
-          </p>
+          <p className="text-sm font-semibold">Investment Performance</p>
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs text-muted">Portfolio Yield</p>
+              <p className="mt-1 text-2xl font-semibold text-foreground">{portfolioYield.toFixed(1)}%</p>
+              <p className="text-[10px] text-muted">Annualized</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Savings Goal</p>
+              <p className="mt-1 text-xl font-semibold text-foreground">{savingsProgress}%</p>
+              <div className="mt-1 h-1.5 rounded-full bg-soft-line">
+                <div className="h-1.5 rounded-full bg-accent" style={{ width: `${savingsProgress}%` }} />
+              </div>
+              <p className="text-[10px] text-muted">{formatPHP(savingsExpense)} saved</p>
+            </div>
+          </div>
         </article>
       </section>
     </section>

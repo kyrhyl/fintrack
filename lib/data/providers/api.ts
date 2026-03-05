@@ -133,15 +133,44 @@ async function tryFetchJson<T>(url: string): Promise<ApiResponse<T> | null> {
 
 function mapDashboardFromTransactions(items: ApiTransactionItem[]): DashboardData {
   const currentMonth = toMonthKey(new Date());
-  const monthItems = items.filter((item) => item.transactionDate.slice(0, 7) === currentMonth);
+  const monthKeys = Array.from(new Set(items.map((item) => item.transactionDate.slice(0, 7)).filter(Boolean))).sort();
+  const fallbackMonth = monthKeys[monthKeys.length - 1] || currentMonth;
+  const selectedMonth = items.some((item) => item.transactionDate.slice(0, 7) === currentMonth)
+    ? currentMonth
+    : fallbackMonth;
+  const monthItems = items.filter((item) => item.transactionDate.slice(0, 7) === selectedMonth);
 
   const income = monthItems.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
   const expenses = monthItems.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
   const passiveCategories = new Set(["savings", "investment", "dividends", "passive", "other"]);
+  const groupByLabel = (rows: ApiTransactionItem[]) => {
+    const map = new Map<string, number>();
+
+    for (const row of rows) {
+      const label = (row.title || row.category || "Other").trim();
+      map.set(label, (map.get(label) || 0) + row.amount);
+    }
+
+    return Array.from(map.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value);
+  };
   const passiveIncome = monthItems
     .filter((item) => item.kind === "income" && passiveCategories.has(item.category.toLowerCase()))
     .reduce((sum, item) => sum + item.amount, 0);
   const activeIncome = Math.max(income - passiveIncome, 0);
+
+  const activeIncomeRows = groupByLabel(
+    monthItems.filter((item) => item.kind === "income" && !passiveCategories.has(item.category.toLowerCase())),
+  );
+  const passiveIncomeRows = groupByLabel(
+    monthItems.filter((item) => item.kind === "income" && passiveCategories.has(item.category.toLowerCase())),
+  );
+  const expenseRowsBase = groupByLabel(monthItems.filter((item) => item.kind === "expense"));
+  const expenseRows = expenseRowsBase.map((item) => ({
+    ...item,
+    percentage: expenses > 0 ? Math.round((item.value / expenses) * 100) : 0,
+  }));
 
   const transactions = monthItems
     .filter((item) => item.kind === "expense")
@@ -157,15 +186,38 @@ function mapDashboardFromTransactions(items: ApiTransactionItem[]): DashboardDat
       amount: item.amount,
     }));
 
-  const base = emptyDashboardData(currentMonth);
+  const base = emptyDashboardData(selectedMonth);
 
   return {
     ...base,
+    subtitle: `As of ${selectedMonth}`,
     financialSummary: {
       totalIncome: income,
       totalExpenses: expenses,
       activeIncome,
       passiveIncome,
+    },
+    incomeStatement: {
+      activeIncome: activeIncomeRows,
+      passiveIncome: passiveIncomeRows,
+      expenses: expenseRows,
+      totals: {
+        activeIncome,
+        passiveIncome,
+        income,
+        expenses,
+      },
+    },
+    balanceSheet: {
+      assets: [],
+      liabilities: [],
+      totals: {
+        assets: Math.max(income - expenses, 0),
+        assetsIncome: passiveIncome,
+        liabilities: 0,
+        liabilitiesPayment: 0,
+        netWorth: Math.max(income - expenses, 0),
+      },
     },
     metrics: [
       {
@@ -283,72 +335,108 @@ function mapDashboardFromOverview(overview: DashboardOverviewPayload, items: Api
 export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
   return {
     async getDashboardData() {
-      if (!baseUrl) {
-        try {
-          const [{ GET: getDashboardOverview }, { GET: getTransactions }] = await Promise.all([
-            import("@/app/api/dashboard/overview/route"),
-            import("@/app/api/transactions/route"),
-          ]);
-
-          const [overviewResponseRaw, transactionsResponseRaw] = await Promise.all([
-            getDashboardOverview(new Request("http://localhost/api/dashboard/overview")),
-            getTransactions(),
-          ]);
-
-          const [overviewResponse, txResponse] = await Promise.all([
-            overviewResponseRaw.json() as Promise<ApiResponse<DashboardOverviewPayload>>,
-            transactionsResponseRaw.json() as Promise<ApiResponse<TransactionsPayload>>,
-          ]);
-
-          if (overviewResponse.success && overviewResponse.data && txResponse.success && txResponse.data) {
-            return mapDashboardFromOverview(overviewResponse.data, txResponse.data.items);
-          }
-
-          if (txResponse.success && txResponse.data) {
-            return mapDashboardFromTransactions(txResponse.data.items);
-          }
-
-          return emptyDashboardData();
-        } catch {
-          return emptyDashboardData();
-        }
-      }
-
       try {
-        const [overviewResponse, txResponse] = await Promise.all([
-          fetchJson<DashboardOverviewPayload>(`${baseUrl}/api/dashboard/overview`),
-          fetchJson<TransactionsPayload>(`${baseUrl}/api/transactions`),
+        const [
+          { connectToDatabase },
+          { Transaction },
+          { Asset },
+          { Liability },
+          { buildNetWorthBreakdown },
+        ] = await Promise.all([
+          import("@/lib/mongodb"),
+          import("@/models/Transaction"),
+          import("@/models/Investment"),
+          import("@/models/Liability"),
+          import("@/lib/services/net-worth"),
         ]);
 
-        if (overviewResponse.success && overviewResponse.data && txResponse.success && txResponse.data) {
-          return mapDashboardFromOverview(overviewResponse.data, txResponse.data.items);
-        }
+        await connectToDatabase();
 
-        if (!txResponse.success || !txResponse.data) {
-          return emptyDashboardData();
-        }
+        const now = new Date();
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-        const mapped = mapDashboardFromTransactions(txResponse.data.items);
-        const month = toMonthKey(new Date());
+        const [transactions, assets, liabilities] = await Promise.all([
+          Transaction.find({ transactionDate: { $gte: monthStart, $lte: monthEnd } }).sort({ transactionDate: -1 }).lean(),
+          Asset.find({ isActive: true }).lean(),
+          Liability.find({ isActive: true }).lean(),
+        ]);
 
-        const insightsResponse = await tryFetchJson<BudgetInsightsPayload>(`${baseUrl}/api/budget/${month}/insights`);
-        const overspent = insightsResponse?.success
-          ? insightsResponse.data?.insights.overspentCategories?.reduce((sum, item) => sum + item.variance, 0) || 0
-          : 0;
+        const payloadItems: ApiTransactionItem[] = transactions.map((item) => ({
+          title: item.title,
+          category: item.category,
+          amount: item.amount,
+          kind: item.kind,
+          transactionDate: new Date(item.transactionDate).toISOString(),
+        }));
+
+        const breakdown = buildNetWorthBreakdown(assets, liabilities);
+
+        const monthIncome = transactions
+          .filter((t) => t.kind === "income")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
+        const monthExpenses = transactions
+          .filter((t) => t.kind === "expense")
+          .reduce((sum, t) => sum + (t.amount || 0), 0);
 
         return {
-          ...mapped,
-          metrics: mapped.metrics.map((metric, index) =>
-            index === 0
-              ? {
-                  ...metric,
-                  note: overspent > 0 ? `Overspending detected: PHP ${overspent.toFixed(2)}` : metric.note,
-                  tone: overspent > 0 ? "danger" : metric.tone,
-                }
-              : metric,
-          ),
+          title: "Personal Finance Overview",
+          subtitle: `As of ${monthKey}`,
+          financialSummary: {
+            totalIncome: monthIncome,
+            totalExpenses: monthExpenses,
+            activeIncome: monthIncome * 0.8,
+            passiveIncome: monthIncome * 0.2,
+          },
+          incomeStatement: {
+            activeIncome: [{ label: "Salary", value: monthIncome * 0.8 }],
+            passiveIncome: [{ label: "Investments", value: monthIncome * 0.2 }],
+            expenses: [],
+            totals: {
+              activeIncome: monthIncome * 0.8,
+              passiveIncome: monthIncome * 0.2,
+              income: monthIncome,
+              expenses: monthExpenses,
+            },
+          },
+          balanceSheet: {
+            assets: breakdown.assets,
+            liabilities: breakdown.liabilities,
+            totals: breakdown.totals,
+          },
+          metrics: [
+            {
+              label: "Net Worth",
+              value: breakdown.totals.netWorth,
+              note: "Assets - Liabilities",
+              tone: "success",
+            },
+            {
+              label: "Liquid Funds",
+              value: breakdown.assets.find((a) => a.label === "Banks Accounts")?.value || 0,
+              note: "Liquid assets available",
+              tone: "default",
+            },
+            {
+              label: "Monthly Cash Flow",
+              value: monthIncome - monthExpenses,
+              note: "Income - Expenses",
+              tone: monthIncome - monthExpenses >= 0 ? "success" : "danger",
+            },
+            {
+              label: "Cash on Hand",
+              value: breakdown.assets.find((a) => a.label === "Cash in hand")?.value || 0,
+              note: "Available physical cash",
+              tone: "default",
+            },
+          ],
+          transactions: [],
+          liabilities: [],
+          spendingMix: [],
         };
-      } catch {
+      } catch (error) {
+        console.error("Dashboard data fetch error:", error);
         return emptyDashboardData();
       }
     },

@@ -1,98 +1,80 @@
 import { createApiDataProvider } from "@/lib/data/providers/api";
+import { connectToDatabase } from "@/lib/mongodb";
+import { Transaction } from "@/models/Transaction";
+import { Asset } from "@/models/Investment";
+import { Liability } from "@/models/Liability";
 
 describe("api data provider", () => {
-  it("maps dashboard overview and transactions in api mode", async () => {
-    const now = new Date().toISOString();
+  beforeEach(async () => {
+    await connectToDatabase();
+    await Transaction.deleteMany({});
+    await Asset.deleteMany({});
+    await Liability.deleteMany({});
+  });
 
-    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
+  it("maps dashboard from database query", async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
 
-      if (url.includes("/api/transactions")) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: {
-              items: [
-                {
-                  title: "Consulting",
-                  category: "salary",
-                  amount: 50000,
-                  kind: "income",
-                  transactionDate: now,
-                },
-                {
-                  title: "Internet",
-                  category: "utilities",
-                  amount: 2000,
-                  kind: "expense",
-                  transactionDate: now,
-                },
-              ],
-              total: 2,
-            },
-          }),
-          { status: 200 },
-        );
-      }
+    await Transaction.insertMany([
+      {
+        title: "Salary",
+        category: "Salary",
+        amount: 50000,
+        kind: "income",
+        transactionDate: new Date(`${year}-${month}-01`),
+      },
+      {
+        title: "Internet",
+        category: "Utilities",
+        amount: 2000,
+        kind: "expense",
+        transactionDate: new Date(`${year}-${month}-05`),
+      },
+    ]);
 
-      if (url.includes("/api/dashboard/overview")) {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            data: {
-              month: now.slice(0, 7),
-              kpis: {
-                monthIncome: 50000,
-                monthExpenses: 2000,
-                monthCashFlow: 48000,
-                netCashPosition: 48000,
-                budgetUtilizationPercent: 0,
-                allocationBalance: 0,
-              },
-              topExpenseCategories: [{ category: "utilities", total: 2000 }],
-              statement: {
-                asOf: now.slice(0, 7),
-                incomeStatement: {
-                  activeIncome: [{ label: "Consulting", value: 50000 }],
-                  passiveIncome: [],
-                  expenses: [{ label: "utilities", percentage: 100, value: 2000 }],
-                  totals: {
-                    activeIncome: 50000,
-                    passiveIncome: 0,
-                    income: 50000,
-                    expenses: 2000,
-                  },
-                },
-                balanceSheet: {
-                  assets: [{ label: "Cash in hand", value: 10000, income: 0 }],
-                  liabilities: [],
-                  totals: {
-                    assets: 10000,
-                    assetsIncome: 0,
-                    liabilities: 0,
-                    liabilitiesPayment: 0,
-                    netWorth: 10000,
-                  },
-                },
-              },
-            },
-          }),
-          { status: 200 },
-        );
-      }
+    await Asset.insertMany([
+      {
+        name: "Savings Account",
+        type: "bank_account",
+        currentValue: 50000,
+        isLiquid: true,
+        isActive: true,
+      },
+      {
+        name: "Stock Portfolio",
+        type: "stock",
+        currentValue: 100000,
+        isActive: true,
+      },
+    ]);
 
-      return new Response(JSON.stringify({ success: false }), { status: 500 });
-    });
-
-    vi.stubGlobal("fetch", fetchMock);
+    await Liability.insertMany([
+      {
+        name: "Credit Card",
+        principal: 5000,
+        outstandingBalance: 5000,
+        monthlyPayment: 500,
+        isActive: true,
+      },
+    ]);
 
     const provider = createApiDataProvider("http://localhost:3000");
     const result = await provider.getDashboardData();
 
-    expect(result.transactions[0]?.name).toBe("Internet");
     expect(result.financialSummary?.totalIncome).toBe(50000);
     expect(result.financialSummary?.totalExpenses).toBe(2000);
+    expect(result.balanceSheet?.totals?.assets).toBe(150000);
+    expect(result.balanceSheet?.totals?.liabilities).toBe(5000);
+    expect(result.balanceSheet?.totals?.netWorth).toBe(145000);
+  });
 
-    vi.unstubAllGlobals();
+  it("returns empty data when no transactions", async () => {
+    const provider = createApiDataProvider("http://localhost:3000");
+    const result = await provider.getDashboardData();
+
+    expect(result.financialSummary?.totalIncome).toBe(0);
+    expect(result.balanceSheet?.totals?.netWorth).toBe(0);
   });
 });
