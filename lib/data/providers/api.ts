@@ -496,17 +496,55 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
     },
 
     async getNetWorthTrendData() {
-      if (!baseUrl) {
-        return netWorthTrendMock;
-      }
-
       try {
-        const response = await fetchJson<NetWorthTrendData>(`${baseUrl}/api/net-worth?limit=12`);
-        if (!response.success || !response.data) {
+        const [{ connectToDatabase }, { NetWorthSnapshot }] = await Promise.all([
+          import("@/lib/mongodb"),
+          import("@/models/NetWorthSnapshot"),
+        ]);
+
+        await connectToDatabase();
+
+        const snapshots = await NetWorthSnapshot.find().sort({ month: 1 }).limit(12).lean();
+
+        if (snapshots.length === 0) {
           return netWorthTrendMock;
         }
 
-        return response.data;
+        const points = snapshots.map((snap) => ({
+          month: snap.month,
+          label: snap.month.split("-")[1] + "/" + snap.month.split("-")[0].slice(2),
+          value: snap.netWorth || 0,
+        }));
+
+        const latest = snapshots[snapshots.length - 1];
+        const previous = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null;
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+        const isCurrentMonthCaptured = latest.month === currentMonth;
+
+        const delta = previous ? (latest.netWorth || 0) - (previous.netWorth || 0) : 0;
+        const deltaPercent = previous && previous.netWorth ? (delta / previous.netWorth) * 100 : 0;
+
+        return {
+          points,
+          latest: {
+            month: latest.month,
+            value: latest.netWorth || 0,
+            assetsTotal: latest.assetsTotal || 0,
+            liabilitiesTotal: latest.liabilitiesTotal || 0,
+            capturedAt: latest.capturedAt ? new Date(latest.capturedAt).toISOString() : new Date().toISOString(),
+          },
+          previous: previous
+            ? {
+                month: previous.month,
+                value: previous.netWorth || 0,
+                capturedAt: previous.capturedAt ? new Date(previous.capturedAt).toISOString() : new Date().toISOString(),
+              }
+            : null,
+          delta,
+          deltaPercent,
+          isCurrentMonthCaptured,
+        };
       } catch {
         return netWorthTrendMock;
       }
