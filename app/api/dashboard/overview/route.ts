@@ -1,7 +1,8 @@
 import { fail, ok } from "@/lib/api";
 import { isValidMonthKey, toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
-import { calculateAllocationBalance, roundMoney } from "@/lib/services/budget";
+import { applyAllocationStrategy, calculateAllocationBalance, computeBudgetActuals, roundMoney } from "@/lib/services/budget";
+import { buildIncomeSummary } from "@/lib/services/income-summary";
 import { buildNetWorthBreakdown } from "@/lib/services/net-worth";
 import { Asset } from "@/models/Investment";
 import { BudgetPlan } from "@/models/BudgetPlan";
@@ -61,7 +62,8 @@ export async function GET(request: Request) {
     monthlyTransactions,
     activeAssets,
     activeLiabilities,
-  ] =
+    incomeSummary,
+    ] =
     await Promise.all([
       Transaction.aggregate<{ _id: string; total: number }>([
         {
@@ -114,15 +116,12 @@ export async function GET(request: Request) {
         .lean(),
       Asset.find({ isActive: true }).lean(),
       Liability.find({ isActive: true }).lean(),
+      buildIncomeSummary(month, { connect: false }),
     ]);
 
-  const monthIncome = roundMoney(
-    monthTotals.find((item) => item._id === "income")?.total || 0,
-  );
   const monthExpenses = roundMoney(
     monthTotals.find((item) => item._id === "expense")?.total || 0,
   );
-  const monthCashFlow = roundMoney(monthIncome - monthExpenses);
 
   const allTimeIncome = roundMoney(
     allTimeTotals.find((item) => item._id === "income")?.total || 0,
@@ -144,16 +143,43 @@ export async function GET(request: Request) {
   const budgetUtilizationPercent =
     plannedTotal > 0 ? roundMoney((monthExpenses / plannedTotal) * 100) : 0;
 
-  const passiveCategories = new Set(["savings", "investment", "dividends", "passive", "rent", "rents", "other"]);
+  const deductionItems = [
+    ...(incomeSummary.salary?.deductions || []),
+    ...(incomeSummary.salary?.loanDeductions || []),
+  ]
+    .map((item) => ({ label: item.name || "Deduction", value: item.amount || 0 }))
+    .filter((item) => item.value > 0);
+  const deductionsTotal = roundMoney(deductionItems.reduce((sum, item) => sum + item.value, 0));
+
+  const salaryDeductionNames = new Set(
+    [...(incomeSummary.salary?.deductions || []), ...(incomeSummary.salary?.loanDeductions || [])]
+      .map((item) => (item.name || "").trim().toLowerCase())
+      .filter(Boolean),
+  );
+
+  const recurringDebtItems = (activeLiabilities || [])
+    .filter((item) => !salaryDeductionNames.has((item.name || "").trim().toLowerCase()))
+    .map((item) => {
+      const payment = item.monthlyPayment && item.monthlyPayment > 0 ? item.monthlyPayment : item.monthlyAmortization || 0;
+      return {
+        label: item.name || "Recurring Debt",
+        value: payment,
+      };
+    })
+    .filter((item) => item.value > 0);
+  const recurringDebtTotal = roundMoney(recurringDebtItems.reduce((sum, item) => sum + item.value, 0));
+
   const activeIncomeRows = sumByLabel(
-    monthlyTransactions
-      .filter((item) => item.kind === "income" && !passiveCategories.has(item.category.toLowerCase()))
-      .map((item) => ({ label: item.title || item.category, value: item.amount })),
+    [
+      { label: "Salary", value: incomeSummary.totals.salaryGross },
+      { label: "Other Active", value: incomeSummary.totals.otherActive },
+    ].filter((item) => item.value > 0),
   );
   const passiveIncomeRows = sumByLabel(
-    monthlyTransactions
-      .filter((item) => item.kind === "income" && passiveCategories.has(item.category.toLowerCase()))
-      .map((item) => ({ label: item.title || item.category, value: item.amount })),
+    [
+      { label: "Investments", value: incomeSummary.totals.investmentInterest },
+      { label: "Other Passive", value: incomeSummary.totals.otherPassive },
+    ].filter((item) => item.value > 0),
   );
   const expenseRows = sumByLabel(
     monthlyTransactions
@@ -164,16 +190,48 @@ export async function GET(request: Request) {
     percentage: monthExpenses > 0 ? Math.round((item.value / monthExpenses) * 100) : 0,
   }));
 
-  const activeIncomeTotal = roundMoney(activeIncomeRows.reduce((sum, item) => sum + item.value, 0));
-  const passiveIncomeTotal = roundMoney(passiveIncomeRows.reduce((sum, item) => sum + item.value, 0));
+  const actualByCategory = monthlyTransactions
+    .filter((item) => item.kind === "expense")
+    .reduce<Record<string, number>>((acc, item) => {
+      const key = item.category || "Other";
+      acc[key] = roundMoney((acc[key] || 0) + (item.amount || 0));
+      return acc;
+    }, {});
+
+  const budgetCategories = budgetPlan?.categories || [];
+  const allocationResult = budgetPlan
+    ? applyAllocationStrategy(budgetCategories, budgetPlan.allocationStrategy, budgetPlan.plannedIncome || 0)
+    : { success: true as const, categories: [] as typeof budgetCategories };
+  const plannedCategories = allocationResult.success ? allocationResult.categories : budgetCategories;
+
+  const budgetActuals = budgetPlan
+    ? computeBudgetActuals(
+        plannedCategories.map((item: { name: string; plannedAmount?: number }) => ({
+          name: item.name,
+          plannedAmount: item.plannedAmount || 0,
+        })),
+        actualByCategory,
+      )
+    : [];
+  const budgetPlannedTotal = roundMoney(budgetActuals.reduce((sum, item) => sum + item.plannedAmount, 0));
+  const budgetActualTotal = roundMoney(budgetActuals.reduce((sum, item) => sum + item.actualAmount, 0));
+  const budgetUtilization = budgetPlannedTotal > 0 ? roundMoney((budgetActualTotal / budgetPlannedTotal) * 100) : 0;
+
+  const activeIncomeTotal = roundMoney(incomeSummary.totals.salaryGross + incomeSummary.totals.otherActive);
+  const passiveIncomeTotal = roundMoney(incomeSummary.totals.investmentInterest + incomeSummary.totals.otherPassive);
+  const totalIncome = roundMoney(activeIncomeTotal + passiveIncomeTotal);
+
+  const expenseBaseTotal = budgetActuals.length > 0 ? budgetActualTotal : monthExpenses;
+  const statementExpensesTotal = roundMoney(expenseBaseTotal + deductionsTotal + recurringDebtTotal);
+  const monthCashFlow = roundMoney(totalIncome - statementExpensesTotal);
 
   const netWorthBreakdown = buildNetWorthBreakdown(activeAssets, activeLiabilities);
 
   return ok({
     month,
     kpis: {
-      monthIncome,
-      monthExpenses,
+      monthIncome: totalIncome,
+      monthExpenses: statementExpensesTotal,
       monthCashFlow,
       netCashPosition,
       budgetUtilizationPercent,
@@ -201,30 +259,51 @@ export async function GET(request: Request) {
       category: item._id,
       total: roundMoney(item.total),
     })),
-      statement: {
-        asOf: month,
-        incomeStatement: {
+    statement: {
+      asOf: month,
+      incomeStatement: {
         activeIncome: activeIncomeRows,
         passiveIncome: passiveIncomeRows,
         expenses: expenseRows,
         totals: {
           activeIncome: activeIncomeTotal,
           passiveIncome: passiveIncomeTotal,
-          income: roundMoney(activeIncomeTotal + passiveIncomeTotal),
-          expenses: monthExpenses,
+          income: totalIncome,
+          expenses: statementExpensesTotal,
+        },
+        deductions: {
+          items: deductionItems,
+          total: deductionsTotal,
+        },
+        recurringDebt: {
+          items: recurringDebtItems,
+          total: recurringDebtTotal,
+        },
+        budgetActuals: {
+          plannedTotal: budgetPlannedTotal,
+          actualTotal: budgetActualTotal,
+          utilizationPercent: budgetUtilization,
+          categories: budgetActuals.map((item) => ({
+            label: item.category,
+            planned: item.plannedAmount,
+            actual: item.actualAmount,
+            variance: item.variance,
+            percentUsed: item.utilizationPercent,
+            overBudget: item.overBudget,
+          })),
         },
       },
-        balanceSheet: {
-          assets: netWorthBreakdown.assets,
-          liabilities: netWorthBreakdown.liabilities,
-          totals: {
-            assets: netWorthBreakdown.totals.assets,
-            assetsIncome: netWorthBreakdown.totals.assetsIncome,
-            liabilities: netWorthBreakdown.totals.liabilities,
-            liabilitiesPayment: netWorthBreakdown.totals.liabilitiesPayment,
-            netWorth: netWorthBreakdown.totals.netWorth,
-          },
+      balanceSheet: {
+        assets: netWorthBreakdown.assets,
+        liabilities: netWorthBreakdown.liabilities,
+        totals: {
+          assets: netWorthBreakdown.totals.assets,
+          assetsIncome: netWorthBreakdown.totals.assetsIncome,
+          liabilities: netWorthBreakdown.totals.liabilities,
+          liabilitiesPayment: netWorthBreakdown.totals.liabilitiesPayment,
+          netWorth: netWorthBreakdown.totals.netWorth,
         },
       },
+    },
   });
 }

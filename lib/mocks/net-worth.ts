@@ -2,12 +2,12 @@ import type { NetWorthTrendData } from "@/types/finance";
 
 export const netWorthTrendMock: NetWorthTrendData = {
   points: [
-    { label: "09/25", month: "2025-09", value: 2145000 },
-    { label: "10/25", month: "2025-10", value: 2192500 },
-    { label: "11/25", month: "2025-11", value: 2231200 },
-    { label: "12/25", month: "2025-12", value: 2287000 },
-    { label: "01/26", month: "2026-01", value: 2364100 },
-    { label: "02/26", month: "2026-02", value: 2441143.67 },
+    { label: "Sep '25", month: "2025-09", value: 2145000 },
+    { label: "Oct '25", month: "2025-10", value: 2192500 },
+    { label: "Nov '25", month: "2025-11", value: 2231200 },
+    { label: "Dec '25", month: "2025-12", value: 2287000 },
+    { label: "Jan '26", month: "2026-01", value: 2364100 },
+    { label: "Feb '26", month: "2026-02", value: 2441143.67 },
   ],
   latest: {
     month: "2026-02",

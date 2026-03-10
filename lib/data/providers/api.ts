@@ -1,3 +1,4 @@
+import { applyAllocationStrategy, computeBudgetActuals, roundMoney } from "@/lib/services/budget";
 import { toMonthKey } from "@/lib/month";
 import { investmentsMock } from "@/lib/mocks/investments";
 import { netWorthTrendMock } from "@/lib/mocks/net-worth";
@@ -68,6 +69,20 @@ function emptyDashboardData(month = toMonthKey(new Date())): DashboardData {
         passiveIncome: 0,
         income: 0,
         expenses: 0,
+      },
+      deductions: {
+        items: [],
+        total: 0,
+      },
+      recurringDebt: {
+        items: [],
+        total: 0,
+      },
+      budgetActuals: {
+        plannedTotal: 0,
+        actualTotal: 0,
+        utilizationPercent: 0,
+        categories: [],
       },
     },
     balanceSheet: {
@@ -207,6 +222,9 @@ function mapDashboardFromTransactions(items: ApiTransactionItem[]): DashboardDat
         income,
         expenses,
       },
+      deductions: base.incomeStatement?.deductions,
+      recurringDebt: base.incomeStatement?.recurringDebt,
+      budgetActuals: base.incomeStatement?.budgetActuals,
     },
     balanceSheet: {
       assets: [],
@@ -342,12 +360,16 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
           { Asset },
           { Liability },
           { buildNetWorthBreakdown },
+          { BudgetPlan },
+          { buildIncomeSummary },
         ] = await Promise.all([
           import("@/lib/mongodb"),
           import("@/models/Transaction"),
           import("@/models/Investment"),
           import("@/models/Liability"),
           import("@/lib/services/net-worth"),
+          import("@/models/BudgetPlan"),
+          import("@/lib/services/income-summary"),
         ]);
 
         await connectToDatabase();
@@ -357,10 +379,12 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
         const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
 
-        const [transactions, assets, liabilities] = await Promise.all([
+        const [transactions, assets, liabilities, budgetPlan, incomeSummary] = await Promise.all([
           Transaction.find({ transactionDate: { $gte: monthStart, $lte: monthEnd } }).sort({ transactionDate: -1 }).lean(),
           Asset.find({ isActive: true }).lean(),
           Liability.find({ isActive: true }).lean(),
+          BudgetPlan.findOne({ month: monthKey }).lean(),
+          buildIncomeSummary(monthKey, { connect: false }),
         ]);
 
         const payloadItems: ApiTransactionItem[] = transactions.map((item) => ({
@@ -373,31 +397,114 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
 
         const breakdown = buildNetWorthBreakdown(assets, liabilities);
 
-        const monthIncome = transactions
-          .filter((t) => t.kind === "income")
-          .reduce((sum, t) => sum + (t.amount || 0), 0);
+        const activeIncomeTotal = roundMoney(
+          incomeSummary.totals.salaryGross + incomeSummary.totals.otherActive,
+        );
+        const passiveIncomeTotal = roundMoney(
+          incomeSummary.totals.investmentInterest + incomeSummary.totals.otherPassive,
+        );
+        const monthIncome = roundMoney(activeIncomeTotal + passiveIncomeTotal);
         const monthExpenses = transactions
           .filter((t) => t.kind === "expense")
           .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+        const deductionItems = [
+          ...(incomeSummary.salary?.deductions || []),
+          ...(incomeSummary.salary?.loanDeductions || []),
+        ]
+          .map((item) => ({ label: item.name || "Deduction", value: item.amount || 0 }))
+          .filter((item) => item.value > 0);
+        const deductionsTotal = roundMoney(deductionItems.reduce((sum, item) => sum + item.value, 0));
+
+        const salaryDeductionNames = new Set(
+          [...(incomeSummary.salary?.deductions || []), ...(incomeSummary.salary?.loanDeductions || [])]
+            .map((item) => (item.name || "").trim().toLowerCase())
+            .filter(Boolean),
+        );
+
+        const recurringDebtItems = (liabilities || [])
+          .filter((item) => !salaryDeductionNames.has((item.name || "").trim().toLowerCase()))
+          .map((item) => {
+            const payment = item.monthlyPayment && item.monthlyPayment > 0 ? item.monthlyPayment : item.monthlyAmortization || 0;
+            return { label: item.name || "Recurring Debt", value: payment };
+          })
+          .filter((item) => item.value > 0);
+        const recurringDebtTotal = roundMoney(recurringDebtItems.reduce((sum, item) => sum + item.value, 0));
+
+        const actualByCategory = transactions
+          .filter((t) => t.kind === "expense")
+          .reduce<Record<string, number>>((acc, item) => {
+            const key = item.category || "Other";
+            acc[key] = roundMoney((acc[key] || 0) + (item.amount || 0));
+            return acc;
+          }, {});
+
+        const budgetCategories = budgetPlan?.categories || [];
+        const allocationResult = budgetPlan
+          ? applyAllocationStrategy(budgetCategories, budgetPlan.allocationStrategy, budgetPlan.plannedIncome || 0)
+          : { success: true as const, categories: [] as typeof budgetCategories };
+        const plannedCategories = allocationResult.success ? allocationResult.categories : budgetCategories;
+
+        const budgetActuals = budgetPlan
+          ? computeBudgetActuals(
+              plannedCategories.map((item: { name: string; plannedAmount?: number }) => ({
+                name: item.name,
+                plannedAmount: item.plannedAmount || 0,
+              })),
+              actualByCategory,
+            )
+          : [];
+        const budgetPlannedTotal = roundMoney(budgetActuals.reduce((sum, item) => sum + item.plannedAmount, 0));
+        const budgetActualTotal = roundMoney(budgetActuals.reduce((sum, item) => sum + item.actualAmount, 0));
+        const budgetUtilization = budgetPlannedTotal > 0 ? roundMoney((budgetActualTotal / budgetPlannedTotal) * 100) : 0;
+        const expenseBaseTotal = budgetActuals.length > 0 ? budgetActualTotal : monthExpenses;
+        const statementExpensesTotal = roundMoney(expenseBaseTotal + deductionsTotal + recurringDebtTotal);
 
         return {
           title: "Personal Finance Overview",
           subtitle: `As of ${monthKey}`,
           financialSummary: {
             totalIncome: monthIncome,
-            totalExpenses: monthExpenses,
-            activeIncome: monthIncome * 0.8,
-            passiveIncome: monthIncome * 0.2,
+            totalExpenses: statementExpensesTotal,
+            activeIncome: activeIncomeTotal,
+            passiveIncome: passiveIncomeTotal,
           },
           incomeStatement: {
-            activeIncome: [{ label: "Salary", value: monthIncome * 0.8 }],
-            passiveIncome: [{ label: "Investments", value: monthIncome * 0.2 }],
+            activeIncome: [
+              { label: "Salary", value: incomeSummary.totals.salaryGross },
+              { label: "Other Active", value: incomeSummary.totals.otherActive },
+            ].filter((item) => item.value > 0),
+            passiveIncome: [
+              { label: "Investments", value: incomeSummary.totals.investmentInterest },
+              { label: "Other Passive", value: incomeSummary.totals.otherPassive },
+            ].filter((item) => item.value > 0),
             expenses: [],
             totals: {
-              activeIncome: monthIncome * 0.8,
-              passiveIncome: monthIncome * 0.2,
+              activeIncome: activeIncomeTotal,
+              passiveIncome: passiveIncomeTotal,
               income: monthIncome,
-              expenses: monthExpenses,
+              expenses: statementExpensesTotal,
+            },
+            deductions: {
+              items: deductionItems,
+              total: deductionsTotal,
+            },
+            recurringDebt: {
+              items: recurringDebtItems,
+              total: recurringDebtTotal,
+            },
+            budgetActuals: {
+              plannedTotal: budgetPlannedTotal,
+              actualTotal: budgetActualTotal,
+              utilizationPercent: budgetUtilization,
+              categories: budgetActuals.map((item) => ({
+                label: item.category,
+                planned: item.plannedAmount,
+                actual: item.actualAmount,
+                variance: item.variance,
+                percentUsed: item.utilizationPercent,
+                overBudget: item.overBudget,
+              })),
             },
           },
           balanceSheet: {
@@ -420,9 +527,9 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
             },
             {
               label: "Monthly Cash Flow",
-              value: monthIncome - monthExpenses,
+              value: monthIncome - statementExpensesTotal,
               note: "Income - Expenses",
-              tone: monthIncome - monthExpenses >= 0 ? "success" : "danger",
+              tone: monthIncome - statementExpensesTotal >= 0 ? "success" : "danger",
             },
             {
               label: "Cash on Hand",
@@ -504,23 +611,36 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
 
         await connectToDatabase();
 
-        const snapshots = await NetWorthSnapshot.find().sort({ month: 1 }).limit(12).lean();
+        const snapshots = await NetWorthSnapshot.find().sort({ capturedAt: -1 }).limit(12).lean();
 
         if (snapshots.length === 0) {
           return netWorthTrendMock;
         }
 
-        const points = snapshots.map((snap) => ({
-          month: snap.month,
-          label: snap.month.split("-")[1] + "/" + snap.month.split("-")[0].slice(2),
-          value: snap.netWorth || 0,
-        }));
+        const ordered = [...snapshots].sort((a, b) => {
+          const aTime = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
+          const bTime = b.capturedAt ? new Date(b.capturedAt).getTime() : 0;
+          return aTime - bTime;
+        });
 
-        const latest = snapshots[snapshots.length - 1];
-        const previous = snapshots.length > 1 ? snapshots[snapshots.length - 2] : null;
+        const points = ordered.map((snap) => {
+          const capturedAt = snap.capturedAt ? new Date(snap.capturedAt) : null;
+          const source = capturedAt || new Date(`${snap.month}-01T00:00:00`);
+          const labelMonth = source.toLocaleDateString("en-US", { month: "short" });
+          const labelYear = source.toLocaleDateString("en-US", { year: "2-digit" });
+
+          return {
+            month: snap.month,
+            label: `${labelMonth} '${labelYear}`,
+            value: snap.netWorth || 0,
+          };
+        });
+
+        const latest = ordered[ordered.length - 1];
+        const previous = ordered.length > 1 ? ordered[ordered.length - 2] : null;
         const now = new Date();
         const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-        const isCurrentMonthCaptured = latest.month === currentMonth;
+        const isCurrentMonthCaptured = ordered.some((snap) => snap.captureDate?.startsWith(currentMonth));
 
         const delta = previous ? (latest.netWorth || 0) - (previous.netWorth || 0) : 0;
         const deltaPercent = previous && previous.netWorth ? (delta / previous.netWorth) * 100 : 0;

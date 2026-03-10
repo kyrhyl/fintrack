@@ -76,6 +76,27 @@ export type DashboardData = {
       income: number;
       expenses: number;
     };
+    deductions?: {
+      items: Array<{ label: string; value: number }>;
+      total: number;
+    };
+    recurringDebt?: {
+      items: Array<{ label: string; value: number }>;
+      total: number;
+    };
+    budgetActuals?: {
+      plannedTotal: number;
+      actualTotal: number;
+      utilizationPercent: number;
+      categories: Array<{
+        label: string;
+        planned: number;
+        actual: number;
+        variance: number;
+        percentUsed: number;
+        overBudget: boolean;
+      }>;
+    };
   };
   balanceSheet?: {
     assets: Array<{ label: string; value: number; income: number }>;

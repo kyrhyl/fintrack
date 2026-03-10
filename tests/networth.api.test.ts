@@ -1,3 +1,4 @@
+import { POST as captureNetWorth } from "@/app/api/net-worth/capture/route";
 import { GET as getNetWorthTrend } from "@/app/api/net-worth/route";
 import { toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
@@ -10,7 +11,7 @@ describe("net worth tracker api", () => {
     await connectToDatabase();
   });
 
-  it("auto-captures current month on dashboard trend fetch", async () => {
+  it("captures current net worth on demand", async () => {
     await Asset.create({
       name: "Cash Reserve",
       type: "cash",
@@ -29,6 +30,14 @@ describe("net worth tracker api", () => {
       isActive: true,
     });
 
+    const captureResponse = await captureNetWorth();
+    const captureBody = await captureResponse.json();
+
+    expect(captureResponse.status).toBe(200);
+    expect(captureBody.success).toBe(true);
+    expect(captureBody.data.month).toBe(toMonthKey(new Date()));
+    expect(captureBody.data.netWorth).toBe(46000);
+
     const response = await getNetWorthTrend(new Request("http://localhost/api/net-worth?limit=12"));
     const body = await response.json();
 
@@ -42,7 +51,7 @@ describe("net worth tracker api", () => {
     expect(snapshots[0].month).toBe(toMonthKey(new Date()));
   });
 
-  it("updates current month snapshot when source balances change", async () => {
+  it("overwrites daily capture when source balances change", async () => {
     const investment = await Asset.create({
       name: "Growth Fund",
       type: "fund",
@@ -61,15 +70,15 @@ describe("net worth tracker api", () => {
       isActive: true,
     });
 
-    const firstResponse = await getNetWorthTrend(new Request("http://localhost/api/net-worth"));
-    const firstBody = await firstResponse.json();
-    const firstValue = firstBody.data.latest.value;
+    const firstCapture = await captureNetWorth();
+    const firstBody = await firstCapture.json();
+    const firstValue = firstBody.data.netWorth;
 
     await Asset.findByIdAndUpdate(investment._id, { currentValue: 150000 }, { runValidators: true });
 
-    const secondResponse = await getNetWorthTrend(new Request("http://localhost/api/net-worth"));
-    const secondBody = await secondResponse.json();
-    const secondValue = secondBody.data.latest.value;
+    const secondCapture = await captureNetWorth();
+    const secondBody = await secondCapture.json();
+    const secondValue = secondBody.data.netWorth;
 
     expect(secondValue).toBeGreaterThan(firstValue);
 

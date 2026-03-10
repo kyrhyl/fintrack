@@ -1,6 +1,7 @@
 import { BalanceSheet } from "@/components/dashboard/balance-sheet";
 import { IncomeStatement } from "@/components/dashboard/income-statement";
 import { NetWorthTrend } from "@/components/dashboard/net-worth-trend";
+import { Topbar } from "@/components/layout/topbar";
 import { getDashboardData, getNetWorthTrendData } from "@/lib/data";
 import { formatPHP } from "@/lib/data/format";
 
@@ -17,6 +18,7 @@ export default async function DashboardPage() {
   const liabilitiesPayment = data.balanceSheet?.totals.liabilitiesPayment || 0;
   const expenseToIncomeRatio =
     totalIncome > 0 ? Math.round(((data.incomeStatement?.totals.expenses || 0) / totalIncome) * 100) : 0;
+  const budgetUtilization = data.incomeStatement?.budgetActuals?.utilizationPercent ?? expenseToIncomeRatio;
 
   const debtToPassiveRatio = passiveIncome > 0 ? Math.round((liabilitiesPayment / passiveIncome) * 100) : 0;
   const debtToIncomeRatio = totalIncome > 0 ? Math.round((liabilitiesPayment / totalIncome) * 100) : 0;
@@ -69,6 +71,9 @@ export default async function DashboardPage() {
 
   return (
     <section className="panel dashboard-page-slim p-5">
+      <div className="md:hidden">
+        <Topbar title="Dashboard" subtitle={data.subtitle} />
+      </div>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Personal Finance Overview</h1>
@@ -101,7 +106,7 @@ export default async function DashboardPage() {
             totalIncome={totalIncome}
             activeIncome={activeIncome}
             passiveIncome={passiveIncome}
-            budgetUtilizationPercent={expenseToIncomeRatio}
+            budgetUtilizationPercent={budgetUtilization}
           />
         </div>
 

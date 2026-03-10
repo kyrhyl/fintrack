@@ -49,7 +49,7 @@ export async function GET() {
   const [assets, latestPlan, snapshots, passiveIncomeResult, salaryForMonth, latestSalary] = await Promise.all([
     Asset.find({ isActive: true }).sort({ currentValue: -1 }).lean(),
     BudgetPlan.findOne().sort({ month: -1 }).lean(),
-    NetWorthSnapshot.find().sort({ month: 1 }).limit(24).lean(),
+    NetWorthSnapshot.find().sort({ capturedAt: -1 }).limit(24).lean(),
     Transaction.aggregate<{ total: number }>([
       {
         $match: {
@@ -70,10 +70,23 @@ export async function GET() {
 
   let trend: TrendPoint[];
   if (snapshots.length > 0) {
-    trend = snapshots.map((snap) => ({
-      label: monthLabel(snap.month),
-      value: roundMoney(snap.assetsTotal || 0),
-    }));
+    const orderedSnapshots = [...snapshots].sort((a, b) => {
+      const aTime = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
+      const bTime = b.capturedAt ? new Date(b.capturedAt).getTime() : 0;
+      return aTime - bTime;
+    });
+
+    trend = orderedSnapshots.map((snap) => {
+      const capturedAt = snap.capturedAt ? new Date(snap.capturedAt) : null;
+      const source = capturedAt || new Date(`${snap.month}-01T00:00:00`);
+      const labelMonth = source.toLocaleDateString("en-US", { month: "short" });
+      const labelYear = source.toLocaleDateString("en-US", { year: "2-digit" });
+
+      return {
+        label: `${labelMonth} '${labelYear}`,
+        value: roundMoney(snap.assetsTotal || 0),
+      };
+    });
   } else {
     const currentAssetsTotal = assets.reduce((sum, item) => sum + (item.currentValue || 0), 0);
     trend = [
@@ -151,7 +164,14 @@ export async function GET() {
   const suggestedAssetBudget = netPay > 0 ? Number((netPay * (suggestedRatePercent / 100)).toFixed(2)) : 0;
   const passiveCoveragePercent = netPay > 0 ? Number(((monthlyDividends / netPay) * 100).toFixed(1)) : 0;
 
-  const latestSnapshot = snapshots.length > 0 ? snapshots[snapshots.length - 1] : null;
+  const orderedSnapshots = snapshots.length > 0
+    ? [...snapshots].sort((a, b) => {
+        const aTime = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
+        const bTime = b.capturedAt ? new Date(b.capturedAt).getTime() : 0;
+        return aTime - bTime;
+      })
+    : [];
+  const latestSnapshot = orderedSnapshots.length > 0 ? orderedSnapshots[orderedSnapshots.length - 1] : null;
   const assetsFromSnapshot = latestSnapshot ? latestSnapshot.assetsTotal : netWorth;
 
   const payload: AssetsData = {

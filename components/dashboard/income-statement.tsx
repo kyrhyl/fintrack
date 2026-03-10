@@ -22,6 +22,9 @@ export function IncomeStatement({
   }
 
   const passiveActiveRatio = activeIncome > 0 ? Math.round((passiveIncome / activeIncome) * 100) : 0;
+  const deductions = statement.deductions;
+  const recurringDebt = statement.recurringDebt;
+  const budgetActuals = statement.budgetActuals;
 
   function expenseTone(label: string) {
     const normalized = label.toLowerCase();
@@ -79,7 +82,7 @@ export function IncomeStatement({
 
         <div className="space-y-3">
           {statement.expenses.map((item) => (
-            <div key={item.label} className="income-expense-row grid grid-cols-[90px_minmax(0,1fr)_46px_auto] items-center gap-2 text-sm">
+            <div key={item.label} className="income-expense-row grid grid-cols-[70px_minmax(0,1fr)_40px_auto] items-center gap-2 text-sm sm:grid-cols-[90px_minmax(0,1fr)_46px_auto]">
               <span className="text-muted">{item.label}</span>
               <div className="mini-track">
                 <div
@@ -92,6 +95,45 @@ export function IncomeStatement({
             </div>
           ))}
         </div>
+
+        {deductions?.items?.length ? (
+          <div className="income-breakdown-block">
+            <div className="income-breakdown-header">
+              <p className="compact-label">Salary Deductions</p>
+              <span className="text-xs font-semibold tabular-nums text-muted">{formatPHP(deductions.total)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {recurringDebt?.items?.length ? (
+          <div className="income-breakdown-block">
+            <div className="income-breakdown-header">
+              <p className="compact-label">Recurring Debt Payments</p>
+              <span className="text-xs font-semibold tabular-nums text-muted">{formatPHP(recurringDebt.total)}</span>
+            </div>
+          </div>
+        ) : null}
+
+        {budgetActuals?.categories?.length ? (
+          <div className="income-breakdown-block">
+            <div className="income-breakdown-header">
+              <div>
+                <p className="compact-label">Actual Expenses vs Budget</p>
+                <p className="text-[10px] text-muted">Planned vs actual for this month</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-semibold tabular-nums">{formatPHP(budgetActuals.actualTotal)} actual</p>
+                <p className="text-[10px] text-muted">{formatPHP(budgetActuals.plannedTotal)} planned</p>
+              </div>
+            </div>
+            <div className="income-budget-summary">
+              <span className="text-xs font-semibold">Utilization</span>
+              <span className={`ml-auto text-xs font-semibold ${budgetActuals.utilizationPercent > 100 ? "text-danger" : "text-success"}`}>
+                {budgetActuals.utilizationPercent.toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        ) : null}
       </div>
     </article>
   );

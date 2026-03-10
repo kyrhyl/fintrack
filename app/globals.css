@@ -699,6 +699,55 @@ body {
   gap: 8px;
 }
 
+.income-breakdown-block {
+  margin-top: 12px;
+  border-top: 1px dashed #e3e9f2;
+  padding-top: 10px;
+}
+
+.income-breakdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.income-breakdown-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.income-budget-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px 90px 60px;
+  gap: 8px;
+  border-bottom: 1px solid #e3e9f2;
+  padding: 6px 0;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8da0b5;
+}
+
+.income-budget-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px 90px 60px;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.income-budget-summary {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  border-top: 1px solid #e3e9f2;
+  padding-top: 6px;
+}
+
 .income-fill-debt {
   background: linear-gradient(90deg, #f08b9e 0%, #e95472 100%);
 }

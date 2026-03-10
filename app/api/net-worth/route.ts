@@ -1,13 +1,7 @@
 import { ok } from "@/lib/api";
-import { toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
 import { roundMoney } from "@/lib/services/budget";
-import { buildNetWorthBreakdown } from "@/lib/services/net-worth";
-import { Asset } from "@/models/Investment";
-import { Liability } from "@/models/Liability";
 import { NetWorthSnapshot } from "@/models/NetWorthSnapshot";
-
-const SNAPSHOT_COOLDOWN_MS = 15 * 60 * 1000;
 
 function parseLimit(value: string | null) {
   const parsed = Number(value || "12");
@@ -18,82 +12,29 @@ function parseLimit(value: string | null) {
   return Math.min(Math.floor(parsed), 36);
 }
 
-function monthLabel(month: string) {
-  const [year, monthNum] = month.split("-");
-  return `${monthNum}/${year.slice(2)}`;
-}
-
-async function latestSourceUpdateAt() {
-  const [investmentLatest, liabilityLatest] = await Promise.all([
-    Asset.findOne({ isActive: true }).sort({ updatedAt: -1 }).select({ updatedAt: 1 }).lean(),
-    Liability.findOne({ isActive: true }).sort({ updatedAt: -1 }).select({ updatedAt: 1 }).lean(),
-  ]);
-
-  const candidates = [investmentLatest?.updatedAt, liabilityLatest?.updatedAt]
-    .filter(Boolean)
-    .map((value) => new Date(value as Date));
-
-  return candidates.length > 0
-    ? new Date(Math.max(...candidates.map((value) => value.getTime())))
-    : new Date(0);
-}
-
-async function upsertCurrentMonthSnapshot(now: Date) {
-  const currentMonth = toMonthKey(now);
-  const sourceUpdatedAt = await latestSourceUpdateAt();
-
-  const existing = await NetWorthSnapshot.findOne({ month: currentMonth }).lean();
-  const capturedAt = existing?.capturedAt ? new Date(existing.capturedAt) : null;
-  const recentCapture =
-    capturedAt && now.getTime() - capturedAt.getTime() < SNAPSHOT_COOLDOWN_MS;
-  const sourceChanged =
-    !existing?.sourceUpdatedAt ||
-    sourceUpdatedAt.getTime() > new Date(existing.sourceUpdatedAt).getTime();
-
-  if (existing && recentCapture && !sourceChanged) {
-    return;
-  }
-
-  const [activeAssets, activeLiabilities] = await Promise.all([
-    Asset.find({ isActive: true }).lean(),
-    Liability.find({ isActive: true }).lean(),
-  ]);
-
-  const breakdown = buildNetWorthBreakdown(activeAssets, activeLiabilities);
-
-  await NetWorthSnapshot.findOneAndUpdate(
-    { month: currentMonth },
-    {
-      month: currentMonth,
-      netWorth: breakdown.totals.netWorth,
-      assetsTotal: breakdown.totals.assets,
-      liabilitiesTotal: breakdown.totals.liabilities,
-      sourceUpdatedAt,
-      capturedAt: now,
-    },
-    {
-      upsert: true,
-      returnDocument: "after",
-      runValidators: true,
-    },
-  );
+function monthLabelFromDate(date: Date | null, month: string) {
+  const source = date || new Date(`${month}-01T00:00:00`);
+  const labelMonth = source.toLocaleDateString("en-US", { month: "short" });
+  const labelYear = source.toLocaleDateString("en-US", { year: "2-digit" });
+  return `${labelMonth} '${labelYear}`;
 }
 
 export async function GET(request: Request) {
   await connectToDatabase();
 
-  const now = new Date();
-  await upsertCurrentMonthSnapshot(now);
-
   const url = new URL(request.url);
   const limit = parseLimit(url.searchParams.get("limit"));
 
   const snapshots = await NetWorthSnapshot.find()
-    .sort({ month: -1 })
+    .sort({ capturedAt: -1 })
     .limit(limit)
     .lean();
 
-  const ordered = [...snapshots].sort((a, b) => a.month.localeCompare(b.month));
+  const ordered = [...snapshots].sort((a, b) => {
+    const aTime = a.capturedAt ? new Date(a.capturedAt).getTime() : 0;
+    const bTime = b.capturedAt ? new Date(b.capturedAt).getTime() : 0;
+    return aTime - bTime;
+  });
   const latest = ordered[ordered.length - 1] || null;
   const previous = ordered[ordered.length - 2] || null;
   const delta =
@@ -105,9 +46,12 @@ export async function GET(request: Request) {
       ? roundMoney((delta / previous.netWorth) * 100)
       : 0;
 
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
   return ok({
     points: ordered.map((item) => ({
-      label: monthLabel(item.month),
+      label: monthLabelFromDate(item.capturedAt ? new Date(item.capturedAt) : null, item.month),
       month: item.month,
       value: roundMoney(item.netWorth || 0),
     })),
@@ -129,6 +73,6 @@ export async function GET(request: Request) {
       : null,
     delta,
     deltaPercent,
-    isCurrentMonthCaptured: latest?.month === toMonthKey(now),
+    isCurrentMonthCaptured: ordered.some((item) => item.captureDate?.startsWith(currentMonthKey)),
   });
 }

@@ -33,9 +33,33 @@ describe("assets overview api", () => {
 
   it("uses snapshot-based trend when snapshots exist", async () => {
     await NetWorthSnapshot.create([
-      { month: "2026-01", netWorth: 1800000, assetsTotal: 2000000, liabilitiesTotal: 200000, capturedAt: new Date("2026-01-15"), sourceUpdatedAt: new Date() },
-      { month: "2026-02", netWorth: 1950000, assetsTotal: 2150000, liabilitiesTotal: 200000, capturedAt: new Date("2026-02-15"), sourceUpdatedAt: new Date() },
-      { month: "2026-03", netWorth: 2100000, assetsTotal: 2300000, liabilitiesTotal: 200000, capturedAt: new Date("2026-03-15"), sourceUpdatedAt: new Date() },
+      {
+        month: "2026-01",
+        captureDate: "2026-01-15",
+        netWorth: 1800000,
+        assetsTotal: 2000000,
+        liabilitiesTotal: 200000,
+        capturedAt: new Date("2026-01-15"),
+        sourceUpdatedAt: new Date(),
+      },
+      {
+        month: "2026-02",
+        captureDate: "2026-02-15",
+        netWorth: 1950000,
+        assetsTotal: 2150000,
+        liabilitiesTotal: 200000,
+        capturedAt: new Date("2026-02-15"),
+        sourceUpdatedAt: new Date(),
+      },
+      {
+        month: "2026-03",
+        captureDate: "2026-03-15",
+        netWorth: 2100000,
+        assetsTotal: 2300000,
+        liabilitiesTotal: 200000,
+        capturedAt: new Date("2026-03-15"),
+        sourceUpdatedAt: new Date(),
+      },
     ]);
 
     const response = await getAssetsOverview();
@@ -44,7 +68,7 @@ describe("assets overview api", () => {
     expect(response.status).toBe(200);
     expect(body.success).toBe(true);
     expect(body.data.trend).toHaveLength(3);
-    expect(body.data.trend[0].label).toBe("01/26");
+    expect(body.data.trend[0].label).toBe("Jan '26");
     expect(body.data.trend[0].value).toBe(2000000);
     expect(body.data.trend[2].value).toBe(2300000);
   });
@@ -67,6 +91,7 @@ describe("assets overview api", () => {
   it("includes assetsTotal in summaryCards from snapshot when available", async () => {
     await NetWorthSnapshot.create({
       month: "2026-03",
+      captureDate: "2026-03-15",
       netWorth: 2100000,
       assetsTotal: 2500000,
       liabilitiesTotal: 400000,

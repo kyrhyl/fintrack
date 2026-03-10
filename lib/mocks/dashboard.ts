@@ -26,7 +26,33 @@ export const dashboardMock: DashboardData = {
       activeIncome: 50312.03,
       passiveIncome: 8553.39,
       income: 58865.42,
-      expenses: 37159.96,
+      expenses: 46899.96,
+    },
+    deductions: {
+      items: [
+        { label: "GSIS", value: 1800 },
+        { label: "PhilHealth", value: 900 },
+        { label: "Pag-IBIG", value: 800 },
+      ],
+      total: 3500,
+    },
+    recurringDebt: {
+      items: [
+        { label: "GSIS Conso", value: 1792 },
+        { label: "Laptop Computer", value: 4582 },
+        { label: "Balance Conversion", value: 1655.22 },
+      ],
+      total: 8029.22,
+    },
+    budgetActuals: {
+      plannedTotal: 35000,
+      actualTotal: 37159.96,
+      utilizationPercent: 106.17,
+      categories: [
+        { label: "Savings", planned: 5000, actual: 4000, variance: -1000, percentUsed: 80, overBudget: false },
+        { label: "Debt", planned: 21000, actual: 24159.96, variance: 3159.96, percentUsed: 115, overBudget: true },
+        { label: "Personal", planned: 9000, actual: 9000, variance: 0, percentUsed: 100, overBudget: false },
+      ],
     },
   },
   balanceSheet: {
