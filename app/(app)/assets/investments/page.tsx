@@ -1,5 +1,6 @@
 import { PortfolioManager } from "@/components/investments/portfolio-manager";
 import { PortfolioTrendChart } from "@/components/investments/portfolio-trend-chart";
+import { Topbar } from "@/components/layout/topbar";
 import { getAssetsData } from "@/lib/data";
 import { formatPHP } from "@/lib/data/format";
 
@@ -14,7 +15,10 @@ export default async function InvestmentAssetsPage() {
 
   return (
     <section className="panel w-full min-w-0 bg-[#f8fbff] p-0">
-      <header className="flex flex-wrap items-center justify-between border-b border-line bg-white px-6 py-3">
+      <div className="md:hidden">
+        <Topbar title="Asset Portfolio" subtitle={data.subtitle} />
+      </div>
+      <header className="hidden flex-wrap items-center justify-between border-b border-line bg-white px-6 py-3 md:flex">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <div className="grid h-6 w-6 place-items-center rounded-md bg-accent text-xs text-white">F</div>
           <span>FinTrack Pro</span>

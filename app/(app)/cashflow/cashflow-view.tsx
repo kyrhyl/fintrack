@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { Topbar } from "@/components/layout/topbar";
 import { formatPHP } from "@/lib/data/format";
 
 import type { DailyTrackingData } from "@/types/finance";
@@ -429,6 +430,9 @@ export function CashflowView({ data, monthLabel }: CashflowViewProps) {
 
   return (
     <section className="panel p-6">
+      <div className="md:hidden">
+        <Topbar title="Daily Tracking" subtitle={monthLabel} />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Daily Tracking</h1>

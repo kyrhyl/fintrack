@@ -1,5 +1,6 @@
 import { DebtsTable } from "@/components/debts/debts-table";
 import { DebtsHeaderActions } from "@/components/debts/debts-header-actions";
+import { Topbar } from "@/components/layout/topbar";
 import { getDebtsData } from "@/lib/data";
 import { formatPHP } from "@/lib/data/format";
 
@@ -28,6 +29,9 @@ export default async function DebtsPage() {
 
   return (
     <section className="panel p-5">
+      <div className="md:hidden">
+        <Topbar title="Debts" subtitle={data.subtitle} />
+      </div>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold">Liability &amp; Debt Repayment</h1>

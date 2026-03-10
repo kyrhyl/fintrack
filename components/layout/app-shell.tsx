@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { MobileBottomNav } from "@/components/layout/mobile-bottom-nav";
 import { Sidebar } from "@/components/layout/sidebar";
 
 type AppShellProps = {
@@ -10,11 +11,12 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-[1400px] px-4 py-4 sm:px-6 sm:py-6">
+    <main className="mx-auto min-h-screen w-full max-w-[1400px] px-4 py-4 pb-24 sm:px-6 sm:py-6 sm:pb-6">
       <div className="dashboard-shell grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
         <Sidebar />
         <section className="flex min-w-0 flex-col gap-4">{children}</section>
       </div>
+      <MobileBottomNav />
     </main>
   );
 }
