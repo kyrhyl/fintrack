@@ -330,7 +330,7 @@ export function DebtsTable({ loans, showControls = true }: DebtsTableProps) {
           <thead>
             <tr className="border-b border-line bg-soft-line/60 text-left text-[11px] uppercase tracking-[0.1em] text-muted">
               <th className="px-3 py-3">Loan Details</th>
-              <th className="px-3 py-3 text-right">Outstanding</th>
+              <th className="px-3 py-3 text-right">Outstanding Debt</th>
               <th className="px-3 py-3 text-right">Monthly</th>
               <th className="px-3 py-3">Timeline / Progress</th>
               <th className="px-3 py-3 text-right">Status</th>
@@ -357,7 +357,7 @@ export function DebtsTable({ loans, showControls = true }: DebtsTableProps) {
                     <p className="font-semibold">{loan.name}</p>
                     <p className="text-xs text-muted">Started {timeline.startedLabel}</p>
                   </td>
-                  <td className="px-3 py-3 text-right font-semibold">{formatPHP(loan.totalDebt)}</td>
+                  <td className="px-3 py-3 text-right font-semibold">{formatPHP(loan.outstandingDebt ?? loan.totalDebt ?? 0)}</td>
                   <td className="px-3 py-3 text-right font-semibold text-danger">{formatPHP(loan.monthly)}</td>
                   <td className="px-3 py-3">
                     <div className="mb-1 flex items-center justify-between text-xs text-muted">

@@ -76,6 +76,7 @@ export async function GET() {
       id: String(item._id),
       name: item.name,
       category: item.category,
+      outstandingDebt: computed.outstandingBalance,
       totalDebt: computed.outstandingBalance,
       monthly: computed.monthlyAmortization,
       progress: Math.min(100, Math.max(0, progress)),
@@ -91,7 +92,7 @@ export async function GET() {
   const activeLoans = loansFromLiabilities.filter((item) => item.isActive && item.status !== "closed");
   const loans = [...activeLoans, ...loansFromLiabilities.filter((item) => !item.isActive || item.status === "closed")];
 
-  const totalDebt = activeLoans.reduce((sum, item) => sum + item.totalDebt, 0);
+  const totalDebt = activeLoans.reduce((sum, item) => sum + item.outstandingDebt, 0);
   const monthlyPaymentFromLiabilities = activeLoans.reduce(
     (sum, item) => sum + item.monthly,
     0,
@@ -123,7 +124,7 @@ export async function GET() {
     subtitle: `As of ${currentMonth}`,
     stats: [
       {
-        label: "Total Debt",
+        label: "Outstanding Debt",
         value: php(totalDebt),
         note: "Estimated from active debt obligations",
         tone: "danger",

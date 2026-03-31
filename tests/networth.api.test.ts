@@ -45,6 +45,8 @@ describe("net worth tracker api", () => {
     expect(body.success).toBe(true);
     expect(body.data.latest.month).toBe(toMonthKey(new Date()));
     expect(body.data.latest.value).toBe(46000);
+    expect(typeof body.data.points[0].assetsTotal).toBe("number");
+    expect(typeof body.data.points[0].liabilitiesTotal).toBe("number");
 
     const snapshots = await NetWorthSnapshot.find().lean();
     expect(snapshots).toHaveLength(1);
@@ -84,5 +86,38 @@ describe("net worth tracker api", () => {
 
     const snapshots = await NetWorthSnapshot.find({ month: toMonthKey(new Date()) }).lean();
     expect(snapshots).toHaveLength(1);
+  });
+
+  it("returns asset and liability totals for latest and previous captures", async () => {
+    await NetWorthSnapshot.insertMany([
+      {
+        month: "2026-02",
+        captureDate: "2026-02-20",
+        netWorth: 120000,
+        assetsTotal: 180000,
+        liabilitiesTotal: 60000,
+        capturedAt: new Date("2026-02-20T12:00:00.000Z"),
+        sourceUpdatedAt: new Date("2026-02-20T12:00:00.000Z"),
+      },
+      {
+        month: "2026-03",
+        captureDate: "2026-03-20",
+        netWorth: 150000,
+        assetsTotal: 220000,
+        liabilitiesTotal: 70000,
+        capturedAt: new Date("2026-03-20T12:00:00.000Z"),
+        sourceUpdatedAt: new Date("2026-03-20T12:00:00.000Z"),
+      },
+    ]);
+
+    const response = await getNetWorthTrend(new Request("http://localhost/api/net-worth?limit=12"));
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.data.latest.assetsTotal).toBe(220000);
+    expect(body.data.latest.liabilitiesTotal).toBe(70000);
+    expect(body.data.previous.assetsTotal).toBe(180000);
+    expect(body.data.previous.liabilitiesTotal).toBe(60000);
   });
 });

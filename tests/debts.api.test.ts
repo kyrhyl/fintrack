@@ -104,7 +104,7 @@ describe("debts overview api", () => {
     expect(afterLoan).toBeTruthy();
     expect(afterLoan.paidThisMonth).toBe(true);
     expect(afterLoan.overdueInstallments).toBe(0);
-    expect(afterLoan.totalDebt).toBe(beforeLoan.totalDebt - beforeLoan.overdueInstallments * 1000);
+    expect(afterLoan.outstandingDebt).toBe(beforeLoan.outstandingDebt - beforeLoan.overdueInstallments * 1000);
   });
 
   it("auto-closes and auto-hides liabilities when fully paid", async () => {
@@ -215,7 +215,7 @@ describe("debts overview api", () => {
     expect(body.success).toBe(true);
     expect(body.data.projection.remainingMonths).toBe(10);
     expect(body.data.loans.some((loan: { name: string; status: string }) => loan.name === "Closed KPI Loan" && loan.status === "closed")).toBe(true);
-    const totalDebtCard = body.data.stats.find((card: { label: string; value: string }) => card.label === "Total Debt");
+    const totalDebtCard = body.data.stats.find((card: { label: string; value: string }) => card.label === "Outstanding Debt");
     expect(totalDebtCard?.value).toContain("10,000.00");
   });
 });

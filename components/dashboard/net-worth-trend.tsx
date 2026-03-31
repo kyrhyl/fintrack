@@ -13,9 +13,15 @@ type NetWorthTrendProps = {
 
 type Point = { x: number; y: number };
 
-function buildPlot(values: number[], width: number, height: number, padX: number, padY: number) {
-  const max = Math.max(...values);
-  const min = Math.min(...values);
+function buildPlot(
+  values: number[],
+  width: number,
+  height: number,
+  padX: number,
+  padY: number,
+  min: number,
+  max: number,
+) {
   const range = Math.max(max - min, 1);
   const usableW = width - padX * 2;
   const usableH = height - padY * 2;
@@ -85,19 +91,34 @@ export function NetWorthTrend({ trend }: NetWorthTrendProps) {
     );
   }
 
-  const values = trend.points.map((point) => point.value);
+  const netWorthValues = trend.points.map((point) => point.value);
+  const assetsValues = trend.points.map((point) => point.assetsTotal);
+  const liabilitiesValues = trend.points.map((point) => point.liabilitiesTotal);
+  const allSeriesValues = [...netWorthValues, ...assetsValues, ...liabilitiesValues];
   const chartW = 760;
   const chartH = 180;
   const chartPadX = 52;
   const chartPadY = 18;
-  const points = buildPlot(values, chartW, chartH, chartPadX, chartPadY);
-  const polyline = toLine(points);
-  const area = `${points[0]?.x},${chartH - chartPadY} ${polyline} ${points[points.length - 1]?.x},${chartH - chartPadY}`;
+  const maxValue = Math.max(...allSeriesValues);
+  const minValue = Math.min(...allSeriesValues);
+  const range = Math.max(maxValue - minValue, 1);
+  const netWorthPoints = buildPlot(netWorthValues, chartW, chartH, chartPadX, chartPadY, minValue, maxValue);
+  const assetsPoints = buildPlot(assetsValues, chartW, chartH, chartPadX, chartPadY, minValue, maxValue);
+  const liabilitiesPoints = buildPlot(liabilitiesValues, chartW, chartH, chartPadX, chartPadY, minValue, maxValue);
+  const netWorthLine = toLine(netWorthPoints);
+  const assetsLine = toLine(assetsPoints);
+  const liabilitiesLine = toLine(liabilitiesPoints);
+  const area = `${netWorthPoints[0]?.x},${chartH - chartPadY} ${netWorthLine} ${netWorthPoints[netWorthPoints.length - 1]?.x},${chartH - chartPadY}`;
   const deltaTone = trend.delta >= 0 ? "text-success" : "text-danger";
   const deltaSign = trend.delta >= 0 ? "+" : "";
-  const maxValue = Math.max(...values);
-  const minValue = Math.min(...values);
-  const range = Math.max(maxValue - minValue, 1);
+  const assetsDelta = trend.previous ? trend.latest.assetsTotal - trend.previous.assetsTotal : 0;
+  const assetsDeltaTone = assetsDelta >= 0 ? "text-success" : "text-danger";
+  const assetsDeltaSign = assetsDelta >= 0 ? "+" : "";
+  const liabilitiesDelta = trend.previous ? trend.latest.liabilitiesTotal - trend.previous.liabilitiesTotal : 0;
+  const liabilitiesImprovement = trend.previous ? trend.previous.liabilitiesTotal - trend.latest.liabilitiesTotal : 0;
+  const liabilitiesImprovementTone = liabilitiesImprovement >= 0 ? "text-success" : "text-danger";
+  const liabilitiesDeltaSign = liabilitiesDelta >= 0 ? "+" : "";
+  const liabilitiesImprovementSign = liabilitiesImprovement >= 0 ? "+" : "";
 
   return (
     <article className="dashboard-mini-card md:col-span-3">
@@ -134,6 +155,34 @@ export function NetWorthTrend({ trend }: NetWorthTrendProps) {
         </button>
       </div>
 
+      <div className="mb-3 grid gap-2 sm:grid-cols-2">
+        <div className="rounded-xl border border-line bg-soft-line/30 p-3">
+          <p className="text-[11px] uppercase tracking-[0.08em] text-muted">Total Assets</p>
+          <p className="mt-1 text-lg font-semibold">{formatPHP(trend.latest.assetsTotal)}</p>
+          <p className={`mt-1 text-xs font-semibold ${assetsDeltaTone}`}>
+            {trend.previous
+              ? `${assetsDeltaSign}${formatPHP(Math.abs(assetsDelta))} vs previous capture`
+              : "No previous capture yet"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-line bg-soft-line/30 p-3">
+          <p className="text-[11px] uppercase tracking-[0.08em] text-muted">Total Liabilities</p>
+          <p className="mt-1 text-lg font-semibold">{formatPHP(trend.latest.liabilitiesTotal)}</p>
+          <p className={`mt-1 text-xs font-semibold ${liabilitiesImprovementTone}`}>
+            {trend.previous
+              ? `${liabilitiesImprovementSign}${formatPHP(Math.abs(liabilitiesImprovement))} improvement (${liabilitiesDeltaSign}${formatPHP(Math.abs(liabilitiesDelta))} raw delta)`
+              : "No previous capture yet"}
+          </p>
+        </div>
+      </div>
+
+      <div className="mb-2 flex flex-wrap items-center gap-3 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#1899dc]" />Net Worth</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#10b981]" />Assets</span>
+        <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-[#ef4444]" />Liabilities</span>
+      </div>
+
       <div className="overflow-x-auto">
         <svg className="min-w-[680px]" viewBox={`0 0 ${chartW} ${chartH}`}>
           {Array.from({ length: 4 }).map((_, index) => {
@@ -156,8 +205,10 @@ export function NetWorthTrend({ trend }: NetWorthTrendProps) {
             );
           })}
           <polygon points={area} fill="rgba(23, 152, 219, 0.14)" />
-          <polyline points={polyline} fill="none" stroke="#1899dc" strokeWidth="3" />
-          {points.map((point) => (
+          <polyline points={assetsLine} fill="none" stroke="#10b981" strokeWidth="2.5" />
+          <polyline points={liabilitiesLine} fill="none" stroke="#ef4444" strokeWidth="2.5" />
+          <polyline points={netWorthLine} fill="none" stroke="#1899dc" strokeWidth="3" />
+          {netWorthPoints.map((point) => (
             <circle key={`${point.x}-${point.y}`} cx={point.x} cy={point.y} fill="#1899dc" r="3.8" />
           ))}
         </svg>

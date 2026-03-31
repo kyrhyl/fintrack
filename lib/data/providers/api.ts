@@ -633,6 +633,8 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
             month: snap.month,
             label: `${labelMonth} '${labelYear}`,
             value: snap.netWorth || 0,
+            assetsTotal: snap.assetsTotal || 0,
+            liabilitiesTotal: snap.liabilitiesTotal || 0,
           };
         });
 
@@ -658,6 +660,8 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
             ? {
                 month: previous.month,
                 value: previous.netWorth || 0,
+                assetsTotal: previous.assetsTotal || 0,
+                liabilitiesTotal: previous.liabilitiesTotal || 0,
                 capturedAt: previous.capturedAt ? new Date(previous.capturedAt).toISOString() : new Date().toISOString(),
               }
             : null,

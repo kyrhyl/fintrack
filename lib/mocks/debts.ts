@@ -10,10 +10,10 @@ export const debtsMock: DebtsData = {
     { label: "Debt to Income Ratio", value: "41%", note: "Moderate", tone: "warning" },
   ],
   loans: [
-    { name: "GSIS Conso", category: "loan", totalDebt: 130099.2, monthly: 1792, progress: 0, status: "newly opened" },
-    { name: "GSIS Policy Loan", category: "loan", totalDebt: 22000, monthly: 2000, progress: 45, status: "on track" },
-    { name: "Laptop Computer", category: "credit_card", totalDebt: 27492, monthly: 4582, progress: 50, status: "on track" },
-    { name: "Balance Conversion", category: "credit_card", totalDebt: 18207.42, monthly: 1655.22, progress: 69, status: "halfway there" },
+    { name: "GSIS Conso", category: "loan", outstandingDebt: 130099.2, monthly: 1792, progress: 0, status: "newly opened" },
+    { name: "GSIS Policy Loan", category: "loan", outstandingDebt: 22000, monthly: 2000, progress: 45, status: "on track" },
+    { name: "Laptop Computer", category: "credit_card", outstandingDebt: 27492, monthly: 4582, progress: 50, status: "on track" },
+    { name: "Balance Conversion", category: "credit_card", outstandingDebt: 18207.42, monthly: 1655.22, progress: 69, status: "halfway there" },
   ],
   recurringBills: [
     { name: "Globe", amount: 1000 },

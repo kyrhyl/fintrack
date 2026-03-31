@@ -144,7 +144,8 @@ export type DebtsData = {
     id?: string;
     name: string;
     category?: string;
-    totalDebt: number;
+    outstandingDebt: number;
+    totalDebt?: number;
     monthly: number;
     progress: number;
     status: string;
@@ -184,7 +185,13 @@ export type SalaryOverviewData = {
 };
 
 export type NetWorthTrendData = {
-  points: Array<{ label: string; month: string; value: number }>;
+  points: Array<{
+    label: string;
+    month: string;
+    value: number;
+    assetsTotal: number;
+    liabilitiesTotal: number;
+  }>;
   latest: {
     month: string;
     value: number;
@@ -195,6 +202,8 @@ export type NetWorthTrendData = {
   previous: {
     month: string;
     value: number;
+    assetsTotal: number;
+    liabilitiesTotal: number;
     capturedAt: string;
   } | null;
   delta: number;

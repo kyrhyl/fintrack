@@ -54,6 +54,8 @@ export async function GET(request: Request) {
       label: monthLabelFromDate(item.capturedAt ? new Date(item.capturedAt) : null, item.month),
       month: item.month,
       value: roundMoney(item.netWorth || 0),
+      assetsTotal: roundMoney(item.assetsTotal || 0),
+      liabilitiesTotal: roundMoney(item.liabilitiesTotal || 0),
     })),
     latest: latest
       ? {
@@ -68,6 +70,8 @@ export async function GET(request: Request) {
       ? {
           month: previous.month,
           value: roundMoney(previous.netWorth || 0),
+          assetsTotal: roundMoney(previous.assetsTotal || 0),
+          liabilitiesTotal: roundMoney(previous.liabilitiesTotal || 0),
           capturedAt: previous.capturedAt,
         }
       : null,
