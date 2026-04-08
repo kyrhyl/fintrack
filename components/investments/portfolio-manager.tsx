@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { formatPHP } from "@/lib/data/format";
+import { isStockPortfolioAggregateAsset } from "@/lib/stocks/constants";
 import { InvestmentForm, type AssetFormPayload, type AssetFormValue } from "@/components/investments/investment-form";
 
 import type { ApiResponse } from "@/types/finance";
@@ -109,7 +110,7 @@ export function PortfolioManager() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold">My Assets</h2>
-          <p className="text-sm text-muted">Editable source of truth for your assets. Create, update, and permanently delete entries.</p>
+          <p className="text-sm text-muted">Editable source of truth for your assets. Stock details are managed in Stock Portfolio.</p>
         </div>
         <button
           className="rounded-xl bg-accent px-3 py-2 text-sm font-semibold text-white"
@@ -136,7 +137,7 @@ export function PortfolioManager() {
           onChange={(event) => setTypeFilter(event.target.value)}
         >
           <option value="all">All Types</option>
-          <option value="stock">Stock</option>
+          <option value="stock">Stock Portfolio (auto)</option>
           <option value="fund">Fund</option>
           <option value="bond">Bond</option>
           <option value="etf">ETF</option>
@@ -184,38 +185,48 @@ export function PortfolioManager() {
               </tr>
             ) : null}
 
-            {items.map((item) => (
+            {items.map((item) => {
+              const managedStock = isStockPortfolioAggregateAsset(item);
+
+              return (
               <tr key={item._id} className="border-b border-line/70">
                 <td className="py-3">
                   <p className="font-semibold">{item.name}</p>
-                  <p className="text-xs text-muted">{item.institution || "No institution"}</p>
+                  <p className="text-xs text-muted">
+                    {managedStock ? "Managed from Stock Portfolio" : item.institution || "No institution"}
+                  </p>
                 </td>
                 <td className="py-3 text-right font-semibold">{formatPHP(item.currentValue)}</td>
                 <td className="py-3 text-right">{item.annualYieldPercent}%</td>
                 <td className="py-3 text-right text-success">{formatPHP(resolveMonthlyIncome(item))}</td>
                 <td className="py-3 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      className="rounded-lg border border-line px-2 py-1 text-xs"
-                      onClick={() => {
-                        setEditing(item);
-                        setFormOpen(true);
-                      }}
-                      type="button"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      className="rounded-lg border border-line px-2 py-1 text-xs text-danger"
-                      onClick={() => void onDelete(item._id)}
-                      type="button"
-                    >
-                      Delete
-                    </button>
-                  </div>
+                  {managedStock ? (
+                    <span className="text-xs text-muted">Manage in /stock-portfolio</span>
+                  ) : (
+                    <div className="flex justify-end gap-2">
+                      <button
+                        className="rounded-lg border border-line px-2 py-1 text-xs"
+                        onClick={() => {
+                          setEditing(item);
+                          setFormOpen(true);
+                        }}
+                        type="button"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="rounded-lg border border-line px-2 py-1 text-xs text-danger"
+                        onClick={() => void onDelete(item._id)}
+                        type="button"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

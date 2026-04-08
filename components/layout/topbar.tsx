@@ -9,6 +9,7 @@ const mobileTabs = [
   { label: "Assets", href: "/assets/investments", matchPrefix: "/assets" },
   { label: "Income", href: "/income", matchPrefix: "/income" },
   { label: "Debts", href: "/debts", matchPrefix: "/debts" },
+  { label: "Stocks", href: "/stock-portfolio", matchPrefix: "/stock-portfolio" },
 ];
 
 type TopbarProps = {

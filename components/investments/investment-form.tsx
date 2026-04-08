@@ -191,7 +191,6 @@ export function InvestmentForm({ open, initialValue, onClose, onSubmit }: Invest
               <option value="bank_account">Bank Account</option>
               <option value="time_deposit">Time Deposit</option>
               <option value="money_market">Money Market</option>
-              <option value="stock">Stock</option>
               <option value="etf">ETF</option>
               <option value="fund">Fund</option>
               <option value="bond">Bond</option>

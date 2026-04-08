@@ -15,6 +15,9 @@ const fraunces = Fraunces({
 export const metadata: Metadata = {
   title: "MyFinancial Dashboard",
   description: "A focused financial overview for modern teams.",
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export const viewport = {

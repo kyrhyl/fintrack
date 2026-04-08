@@ -3,6 +3,7 @@ import { requireApiAuth } from "@/lib/auth/require-auth";
 import { toMonthKey } from "@/lib/month";
 import { connectToDatabase } from "@/lib/mongodb";
 import { roundMoney } from "@/lib/services/budget";
+import { isStockPortfolioAggregateAsset } from "@/lib/stocks/constants";
 import { Asset } from "@/models/Investment";
 import { BudgetPlan } from "@/models/BudgetPlan";
 import { NetWorthSnapshot } from "@/models/NetWorthSnapshot";
@@ -67,6 +68,13 @@ export async function GET() {
   ]);
 
   const salaryRecord = salaryForMonth || latestSalary;
+  const hasAggregateStockAsset = assets.some((item) => isStockPortfolioAggregateAsset(item));
+  const reportableAssets = assets.filter((item) => {
+    if (item.type !== "stock") {
+      return true;
+    }
+    return hasAggregateStockAsset ? isStockPortfolioAggregateAsset(item) : true;
+  });
 
   let trend: TrendPoint[];
   if (snapshots.length > 0) {
@@ -88,7 +96,7 @@ export async function GET() {
       };
     });
   } else {
-    const currentAssetsTotal = assets.reduce((sum, item) => sum + (item.currentValue || 0), 0);
+    const currentAssetsTotal = reportableAssets.reduce((sum, item) => sum + (item.currentValue || 0), 0);
     trend = [
       {
         label: monthLabel(currentMonth),
@@ -100,7 +108,7 @@ export async function GET() {
   const planCategories = Array.isArray(latestPlan?.categories) ? latestPlan.categories : [];
   const sortedCategories = [...planCategories].sort((a, b) => (b.plannedAmount || 0) - (a.plannedAmount || 0));
 
-  const holdingsFromDomain = assets.map((item) => {
+  const holdingsFromDomain = reportableAssets.map((item) => {
     const apy = item.annualYieldPercent || 0;
     const monthlyIncome = resolveMonthlyIncome(item.currentValue || 0, apy, item.monthlyIncome);
 
@@ -134,7 +142,7 @@ export async function GET() {
       };
     });
 
-  const bankAccountsFromDomain = assets
+  const bankAccountsFromDomain = reportableAssets
     .filter((item) => item.isLiquid || item.type === "cash" || item.type === "bank_account")
     .slice(0, 4)
     .map((item) => ({

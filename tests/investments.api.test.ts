@@ -44,13 +44,28 @@ describe("assets api", () => {
     expect(response.status).toBe(422);
   });
 
+  it("blocks creating stock details in assets api", async () => {
+    const request = new Request("http://localhost/api/assets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "JFC",
+        type: "stock",
+        currentValue: 10000,
+      }),
+    });
+
+    const response = await createAsset(request);
+    expect(response.status).toBe(403);
+  });
+
   it("updates and permanently deletes asset", async () => {
     const createRequest = new Request("http://localhost/api/assets", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: "Editable Asset",
-        type: "stock",
+        type: "fund",
         currentValue: 120000,
       }),
     });

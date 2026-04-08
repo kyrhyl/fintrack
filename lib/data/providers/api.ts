@@ -1,4 +1,5 @@
 import { applyAllocationStrategy, computeBudgetActuals, roundMoney } from "@/lib/services/budget";
+import { isStockPortfolioAggregateAsset } from "@/lib/stocks/constants";
 import { toMonthKey } from "@/lib/month";
 import { investmentsMock } from "@/lib/mocks/investments";
 import { netWorthTrendMock } from "@/lib/mocks/net-worth";
@@ -395,7 +396,14 @@ export function createApiDataProvider(baseUrl: string): FinanceDataProvider {
           transactionDate: new Date(item.transactionDate).toISOString(),
         }));
 
-        const breakdown = buildNetWorthBreakdown(assets, liabilities);
+        const hasAggregateStockAsset = assets.some((item) => isStockPortfolioAggregateAsset(item));
+        const reportableAssets = assets.filter((item) => {
+          if (item.type !== "stock") {
+            return true;
+          }
+          return hasAggregateStockAsset ? isStockPortfolioAggregateAsset(item) : true;
+        });
+        const breakdown = buildNetWorthBreakdown(reportableAssets, liabilities);
 
         const activeIncomeTotal = roundMoney(
           incomeSummary.totals.salaryGross + incomeSummary.totals.otherActive,

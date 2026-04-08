@@ -4,6 +4,7 @@ import { ZodError } from "zod";
 import { fail, ok } from "@/lib/api";
 import { requireApiAuth } from "@/lib/auth/require-auth";
 import { connectToDatabase } from "@/lib/mongodb";
+import { isStockPortfolioAggregateAsset } from "@/lib/stocks/constants";
 import { assetUpdateSchema } from "@/lib/validation";
 import { Asset } from "@/models/Investment";
 
@@ -45,6 +46,17 @@ export async function PATCH(request: Request, context: RouteContext) {
     const payload = assetUpdateSchema.parse(await request.json());
 
     await connectToDatabase();
+    const existing = await Asset.findById(id).lean();
+    if (!existing) {
+      return fail("NOT_FOUND", "Asset not found.", 404);
+    }
+    if (isStockPortfolioAggregateAsset(existing)) {
+      return fail("FORBIDDEN", "Stock aggregate is managed from Stock Portfolio page.", 403);
+    }
+    if (payload.type === "stock") {
+      return fail("FORBIDDEN", "Create stock details from Stock Portfolio page.", 403);
+    }
+
     const updated = await Asset.findByIdAndUpdate(id, payload, {
       returnDocument: "after",
       runValidators: true,
@@ -75,6 +87,14 @@ export async function DELETE(_: Request, context: RouteContext) {
   }
 
   await connectToDatabase();
+  const existing = await Asset.findById(id).lean();
+  if (!existing) {
+    return fail("NOT_FOUND", "Asset not found.", 404);
+  }
+  if (isStockPortfolioAggregateAsset(existing)) {
+    return fail("FORBIDDEN", "Stock aggregate is managed from Stock Portfolio page.", 403);
+  }
+
   const deleted = await Asset.findByIdAndDelete(id).lean();
 
   if (!deleted) {

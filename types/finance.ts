@@ -136,6 +136,53 @@ export type AssetsData = {
 
 export type InvestmentsData = AssetsData;
 
+export type StockPosition = {
+  id: string;
+  name: string;
+  symbol: string;
+  exchange: string;
+  shares: number;
+  averageCost: number;
+  lastPrice: number;
+  marketValue: number;
+  costBasis: number;
+  unrealizedPnL: number;
+  unrealizedPnLPercent: number;
+  lastPriceAt?: string;
+  priceSource?: string;
+};
+
+export type StockHolding = {
+  _id: string;
+  name: string;
+  symbol: string;
+  exchange: string;
+  shares: number;
+  averageCost: number;
+  lastPrice?: number;
+  lastPriceAt?: string;
+  priceSource?: string;
+  notes?: string;
+  isActive: boolean;
+};
+
+export type StockPortfolioData = {
+  title: string;
+  subtitle: string;
+  summaryCards: Array<{ label: string; value: number; note: string }>;
+  trend: TrendPoint[];
+  positions: StockPosition[];
+  latestMonth: string | null;
+  previousMonth: string | null;
+  asOf: string;
+};
+
+export type StockCaptureResult = {
+  month: string;
+  capturedCount: number;
+  failedSymbols: string[];
+};
+
 export type DebtsData = {
   title: string;
   subtitle: string;

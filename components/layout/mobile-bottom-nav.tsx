@@ -9,6 +9,7 @@ const navItems = [
   { label: "Assets", href: "/assets/investments", matchPrefix: "/assets" },
   { label: "Income", href: "/income", matchPrefix: "/income" },
   { label: "Debts", href: "/debts", matchPrefix: "/debts" },
+  { label: "Stocks", href: "/stock-portfolio", matchPrefix: "/stock-portfolio" },
 ];
 
 export function MobileBottomNav() {
@@ -16,7 +17,7 @@ export function MobileBottomNav() {
 
   return (
     <nav className="fixed bottom-4 left-1/2 z-30 w-[calc(100%-2rem)] max-w-[520px] -translate-x-1/2 rounded-2xl border border-line bg-white/95 p-2 shadow-[0_12px_24px_rgba(15,23,42,0.12)] backdrop-blur lg:hidden">
-      <div className="grid grid-cols-5 gap-1 text-[11px] font-semibold">
+      <div className="grid grid-cols-6 gap-1 text-[11px] font-semibold">
         {navItems.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(`${item.matchPrefix}/`);
           return (

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 
-type NavIcon = "dashboard" | "accounts" | "budget" | "income" | "trend";
+type NavIcon = "dashboard" | "accounts" | "budget" | "income" | "trend" | "stocks";
 
 const navItems: Array<{ label: string; href: string; icon: NavIcon }> = [
   { label: "Dashboard", href: "/dashboard", icon: "dashboard" },
@@ -12,6 +12,7 @@ const navItems: Array<{ label: string; href: string; icon: NavIcon }> = [
   { label: "Assets", href: "/assets/investments", icon: "budget" },
   { label: "Income", href: "/income", icon: "income" },
   { label: "Debts", href: "/debts", icon: "trend" },
+  { label: "Stock Portfolio", href: "/stock-portfolio", icon: "stocks" },
 ];
 
 function SidebarIcon({ icon }: { icon: NavIcon }) {
@@ -51,6 +52,15 @@ function SidebarIcon({ icon }: { icon: NavIcon }) {
         <path d="M5 16.5L9.5 12L13.2 14.8L19 9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M15.5 9H19V12.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M8 6.5H11" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      </svg>
+    );
+  }
+
+  if (icon === "stocks") {
+    return (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 18L10 12L14 15L20 8" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M16 8H20V12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
     );
   }

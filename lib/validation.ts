@@ -177,3 +177,20 @@ const incomeStreamBaseSchema = z.object({
 
 export const incomeStreamCreateSchema = incomeStreamBaseSchema;
 export const incomeStreamUpdateSchema = incomeStreamBaseSchema.partial();
+
+export const stockCaptureSchema = z.object({
+  month: monthSchema.optional(),
+});
+
+const stockHoldingBaseSchema = z.object({
+  name: z.string().trim().min(1),
+  symbol: z.string().trim().min(1).max(16),
+  exchange: z.string().trim().max(16).optional().default("PSE"),
+  shares: z.number().positive(),
+  averageCost: z.number().nonnegative().optional().default(0),
+  notes: z.string().trim().max(1000).optional().default(""),
+  isActive: z.boolean().optional(),
+});
+
+export const stockHoldingCreateSchema = stockHoldingBaseSchema;
+export const stockHoldingUpdateSchema = stockHoldingBaseSchema.partial();
